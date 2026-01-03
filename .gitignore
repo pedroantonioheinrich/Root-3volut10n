@@ -1,0 +1,193 @@
+# ============================================
+# ROOT EVOLUTION - GIT IGNORE
+# ============================================
+
+# ============ SISTEMA / EDITOR =============
+
+
+venv/
+.env/
+*.pyc
+__pycache__/
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*.swo
+*~
+
+# IDEs e editores
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# ============ PYTHON ESPECÍFICO ============
+
+# Bytecode Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribuições / instalações
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+parts/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Pip e virtualenv
+pip-delete-this-directory.txt
+pip-log.txt
+Pipfile.lock
+pyvenv.cfg
+.python-version
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre
+.pyre/
+
+# ============ LOGS E DADOS TEMPORÁRIOS ============
+
+# Logs do jogo
+*.log
+logs/
+teste_*.log
+
+# Dados de save (manter apenas exemplo)
+saves/*
+!saves/.gitkeep
+!saves/example_save.json
+
+# Dados temporários
+*.tmp
+*.temp
+.temp/
+tmp/
+temp/
+
+# Arquivos de estado
+.jogo_atual.json
+.game_state.json
+*.state
+*.save
+*.bak
+*.backup
+
+# ============ CONFIGURAÇÕES LOCAIS ============
+
+# Configurações locais
+config_local.ini
+settings_local.json
+.env
+.local.env
+
+# Chaves e credenciais
+*.key
+*.pem
+*.crt
+*.cert
+secrets.py
+credentials.json
+api_keys.json
+
+# ============ MULTIMÍDIA / ARQUIVOS PESADOS ============
+
+# Imagens e sons (se houver)
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+*.mp3
+*.wav
+*.ogg
+
+# Vídeos
+*.mp4
+*.avi
+*.mov
+
+# Arquivos de assets
+assets/raw/
+assets/temp/
+
+# ============ DOCUMENTAÇÃO / BUILD ============
+
+# Documentação gerada
+docs/_build/
+docs/_static/
+docs/_templates/
+
+# Build do Sphinx
+docs/build/
+
+# Coletâneas
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+.coverage.*
+
+# ============ BACKUPS ============
+
+# Backups automáticos
+*_backup_*
+backup_*
+*.backup.*
+
+# Versões antigas
+*.old
+*.orig
+
+# ============ ESPECÍFICO DO PROJETO ============
+
+# Cache de capítulos
+chapters/__pycache__/
+
+# Cache do manual
+manual_hacking/__pycache__/
+
+# Cache de utils
+utils/__pycache__/
+
+# Arquivos de debug
+debug_*.txt
+profile_*.prof
+*.profile
+
+# Testes unitários temporários
+test_output/
+test_reports/
+
+# ============ WINDOWS ============
+
+# Windows
+[Ll]ogs/
+[Tt]emp/
+ehthumbs.db
+*.cab
+*.msi
+*.msm
+*.msp
+*.lnk
+
+# ============ LINUX/MAC ============
+
+# Linux
+*.so
+
+# Mac
+*.dmg
