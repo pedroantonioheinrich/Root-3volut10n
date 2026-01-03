@@ -12,43 +12,8 @@ import readline
 import subprocess
 from datetime import datetime
 
-# ========== PALETA DE CORES KALI LINUX ==========
-class CoresKali:
-    """Classe de cores para terminal Kali Linux"""
-    
-    # Cores principais do Kali
-    KALI_AZUL = '\033[38;5;39m'     # Azul Kali (#0099CC)
-    KALI_ROXO = '\033[38;5;135m'    # Roxo Kali (#9966CC)
-    KALI_VERDE = '\033[38;5;82m'    # Verde Kali (#66CC00)
-    KALI_VERMELHO = '\033[38;5;196m' # Vermelho Kali (#FF3333)
-    KALI_AMARELO = '\033[38;5;226m' # Amarelo Kali (#FFFF33)
-    KALI_CIANO = '\033[38;5;51m'    # Ciano Kali (#00FFFF)
-    KALI_BRANCO = '\033[38;5;255m'  # Branco Kali (#FFFFFF)
-    KALI_CINZA = '\033[38;5;244m'   # Cinza Kali (#808080)
-    
-    # Cores padrão ANSI (fallback)
-    VERDE = '\033[92m'
-    VERMELHO = '\033[91m'
-    AMARELO = '\033[93m'
-    AZUL = '\033[94m'
-    CIANO = '\033[96m'
-    BRANCO = '\033[97m'
-    CINZA = '\033[90m'
-    ROXO = '\033[95m'
-    MAGENTA = '\033[35m'
-    
-    # Estilos
-    RESET = '\033[0m'
-    NEGRITO = '\033[1m'
-    ITALICO = '\033[3m'
-    SUBLINHADO = '\033[4m'
-    INVERTIDO = '\033[7m'
-    
-    # Efeitos especiais
-    PISCANDO = '\033[5m'
-    RAPIDO = '\033[6m'
-
-C = CoresKali()
+# ========== PALETA DE CORES (importada de utils.colors) ==========
+from utils.colors import C, Cores
 
 # Constantes de status para compatibilidade
 SUCESSO = C.KALI_VERDE + C.NEGRITO
@@ -57,42 +22,49 @@ ALERTA = C.KALI_AMARELO + C.NEGRITO
 INFO = C.KALI_CIANO + C.NEGRITO
 DESTAQUE = C.KALI_ROXO + C.NEGRITO
 
-
-# ========== ALIAS PARA COMPATIBILIDADE ==========
-# Adicionado para compatibilidade com outros módulos
-Cores = CoresKali  # Permite importar como "from utils.terminal_kali import Cores"
-
 # ========== FUNÇÃO DIGITAR PARA COMPATIBILIDADE ==========
-def digitar(texto, velocidade=0.03, pausa_final=0.5, cor=C.KALI_BRANCO, efeito_sonoro=False):
-    """
-    Exibe texto com efeito de digitação.
-    
+def digitar(texto, delay=None, velocidade=None, cor=None, fim='\n', pausa_final=None, efeito_sonoro=False):
+    """Compatível: aceita `delay` ou `velocidade` e `fim` (final string).
+
+    Uso comum:
+      digitar(texto, delay=0.02, cor=C.KALI_VERDE)
+      digitar(texto, velocidade=0.02, cor=C.KALI_VERDE)
+
     Args:
-        texto: Texto a ser exibido
-        velocidade: Tempo entre cada caractere (segundos)
-        pausa_final: Tempo de pausa no final (segundos)
-        cor: Cor do texto (usar constantes da classe Cores)
-        efeito_sonoro: Se True, emite som de digitação
+        texto: str - texto a ser exibido
+        delay / velocidade: float - tempo entre caracteres (segundos)
+        cor: str - código ANSI da cor
+        fim: str - caractere(s) ao final (padrão '\n')
+        pausa_final: float - pausa após a impressão (opcional)
+        efeito_sonoro: bool - ativa pequenos glitches durante digitação
     """
+    # Resolver parâmetros compatíveis
+    if delay is None:
+        delay = velocidade if velocidade is not None else 0.03
+    if cor is None:
+        cor = C.KALI_BRANCO
+    if pausa_final is None:
+        pausa_final = 0.5
+
     sys.stdout.write(cor)
-    
+
     for caractere in texto:
         sys.stdout.write(caractere)
         sys.stdout.flush()
-        
-        # Efeito de teclado aleatório
+
+        # Efeito de teclado aleatório (opcional)
         if efeito_sonoro and caractere not in [' ', '\n', '\t']:
             if random.random() > 0.7:
-                # Pequeno glitch
-                time.sleep(velocidade * 0.5)
+                time.sleep(delay * 0.5)
                 sys.stdout.write('\b')
-                time.sleep(velocidade * 0.3)
+                time.sleep(delay * 0.3)
                 sys.stdout.write(caractere)
                 sys.stdout.flush()
-        
-        time.sleep(velocidade)
-    
-    sys.stdout.write(C.RESET)
+
+        time.sleep(delay)
+
+    # Reset de cor e fim de linha compatível
+    sys.stdout.write(C.RESET + fim)
     sys.stdout.flush()
     time.sleep(pausa_final)
 
@@ -266,39 +238,43 @@ class TerminalKali:
     # ========== COMANDOS SIMULADOS ==========
     def _cmd_ls(self, args):
         """Simula o comando ls"""
-        path = self._resolve_path(args[0] if args else ".")
-        
-        if path in self.filesystem:
-            contents = self.filesystem[path]
-            
-            if isinstance(contents, dict):
-                # Listar diretório
-                saida = []
-                for item in sorted(contents.keys()):
-                    if item.startswith('.'):
-                        saida.append(f"{C.KALI_CINZA}{item}{C.RESET}")
-                    elif isinstance(contents[item], dict):
-                        saida.append(f"{C.KALI_AZUL}{item}/{C.RESET}")
-                    else:
-                        saida.append(f"{C.KALI_BRANCO}{item}{C.RESET}")
-                
-                # Formatar em colunas
-                cols = 3
-                items = list(contents.keys())
-                max_len = max(len(i) for i in items) + 2
-                
-                for i in range(0, len(items), cols):
-                    linha = ""
-                    for j in range(cols):
-                        if i + j < len(items):
-                            item = items[i + j]
-                            cor = C.KALI_CINZA if item.startswith('.') else C.KALI_AZUL if isinstance(contents[item], dict) else C.KALI_BRANCO
-                            linha += f"{cor}{item:<{max_len}}{C.RESET}"
-                    print(linha)
-            else:
-                print(f"{C.KALI_BRANCO}{contents}{C.RESET}")
+        # Se nenhum argumento, listar diretório atual (~)
+        raw = args[0] if args else "."
+        if raw in ['.', './']:
+            path = '~'
         else:
+            path = self._resolve_path(raw)
+
+        # Usar _find_file para navegar no filesystem simulado
+        contents = self._find_file(path)
+
+        if contents is None:
             self.mostrar_saida(f"ls: cannot access '{args[0] if args else '.'}': No such file or directory", "erro")
+            return True
+
+        if isinstance(contents, dict):
+            # Listar diretório
+            items = sorted(contents.keys())
+            if not items:
+                return True
+
+            # Formatar em colunas
+            cols = 3
+            max_len = max(len(i) for i in items) + 2
+
+            for i in range(0, len(items), cols):
+                linha = ""
+                for j in range(cols):
+                    if i + j < len(items):
+                        item = items[i + j]
+                        val = contents[item]
+                        cor = C.KALI_CINZA if item.startswith('.') else (C.KALI_AZUL if isinstance(val, dict) else C.KALI_BRANCO)
+                        display = f"{item}/" if isinstance(val, dict) else item
+                        linha += f"{cor}{display:<{max_len}}{C.RESET}"
+                print(linha)
+        else:
+            # Arquivo - imprimir conteúdo
+            print(f"{C.KALI_BRANCO}{contents}{C.RESET}")
         
         return True
     
@@ -316,8 +292,8 @@ class TerminalKali:
             else:
                 self.cwd = f"{self.cwd}/{path}" if self.cwd != "~" else f"~/{path}"
         
-        # Normalizar caminho
-        self.cwd = self.cwd.replace("//", "/").replace("~/", "~").rstrip("/")
+        # Normalizar caminho: apenas colapsar barras duplicadas
+        self.cwd = self.cwd.replace("//", "/").rstrip("/")
         if not self.cwd:
             self.cwd = "~"
         
@@ -399,20 +375,27 @@ class TerminalKali:
         if len(args) < 2:
             self.mostrar_saida("scp: missing file or destination", "erro")
             return False
-        
+
         source = args[0]
         dest = args[1]
-        
+
+        # Validar existência do arquivo fonte no filesystem simulado
+        src_path = self._resolve_path(source)
+        src_val = self._find_file(src_path)
+        if src_val is None:
+            self.mostrar_saida(f"scp: {source}: No such file or directory", "erro")
+            return False
+
         print(f"{C.KALI_CIANO}Copying {source} to {dest}...{C.RESET}")
-        time.sleep(0.5)
-        
+        time.sleep(0.3)
+
         # Efeito de progresso
         for i in range(10):
             progress = "█" * (i + 1) + "░" * (9 - i)
             sys.stdout.write(f"\r[{progress}] {((i+1)*10)}%")
             sys.stdout.flush()
-            time.sleep(0.1)
-        
+            time.sleep(0.08)
+
         print(f"\n{C.KALI_VERDE}Transfer completed successfully.{C.RESET}")
         return True
     
@@ -489,7 +472,7 @@ class TerminalKali:
         print(f"{C.KALI_BRANCO}Available commands:{C.RESET}")
         print(f"{C.KALI_CINZA}  ls, cd, pwd, whoami, clear, cat, nano{C.RESET}")
         print(f"{C.KALI_CINZA}  ssh, scp, nmap, sqlmap, ifconfig, ping{C.RESET}")
-        print(f"{C.KALI_CINza}  help, manual, history, exit{C.RESET}")
+        print(f"{C.KALI_CINZA}  help, manual, history, exit{C.RESET}")
         return True
     
     def _cmd_manual(self, args):
@@ -652,8 +635,7 @@ def header_kali_v2(titulo="ROOT EVOLUTION", subtitulo=""):
     # Limpar tela
     os.system('cls' if os.name == 'nt' else 'clear')
     
-    # Cores
-    from .terminal_kali import C
+    # Cores (usa variável module-level `C`)
     
     # Cabeçalho ASCII art
     header = f"""{C.KALI_ROXO}{C.NEGRITO}
@@ -690,14 +672,12 @@ def header_kali_v2(titulo="ROOT EVOLUTION", subtitulo=""):
 
 def prompt_kali(username="root", hostname="kali"):
     """Retorna um prompt do Kali Linux formatado"""
-    from .terminal_kali import C
     return f"{C.KALI_AZUL}[{C.KALI_VERDE}{username}{C.KALI_AZUL}@{C.KALI_ROXO}{hostname}{C.KALI_AZUL}]{C.RESET} {C.KALI_ROXO}#{C.RESET} "
 
 
 
 def mostrar_banner():
     """Mostra um banner do Kali Linux"""
-    from .terminal_kali import C, header_kali_v2
     header_kali_v2("KALI LINUX", "Simulation Environment")
 
 

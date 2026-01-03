@@ -23,6 +23,10 @@ class Cores:
     REVERSO = '\033[7m'
     FUNDO_VERDE = '\033[42m'
     FUNDO_VERMELHO = '\033[41m'
+    # Cores adicionais para Mr. Robot style
+    VERDE_ESCURO = '\033[32m'
+    CIANO_ESCURO = '\033[36m'
+    CINZA_CLARO = '\033[37m'
 
 C = Cores()
 
@@ -30,20 +34,38 @@ def obter_largura_terminal():
     """Retorna a largura atual do terminal"""
     return get_terminal_size().columns
 
-def imprimir_linha(caractere="─"):
-    """Imprime uma linha horizontal"""
+def imprimir_linha(caractere="─", estilo="normal"):
+    """Imprime uma linha horizontal estilo Mr. Robot"""
     largura = obter_largura_terminal() - 2
-    print(f"{C.CINZA}┌{caractere * largura}┐{C.RESET}")
+    
+    if estilo == "dupla":
+        print(f"{C.VERDE}╔{caractere * largura}╗{C.RESET}")
+    elif estilo == "fundo":
+        print(f"{C.VERDE}╠{caractere * largura}╣{C.RESET}")
+    elif estilo == "inferior":
+        print(f"{C.VERDE}╚{caractere * largura}╝{C.RESET}")
+    else:
+        print(f"{C.VERDE}{caractere * (largura + 2)}{C.RESET}")
 
 def imprimir_titulo(titulo):
-    """Imprime título centralizado com bordas"""
-    largura = obter_largura_terminal() - 4
-    titulo_centralizado = f" {titulo} ".center(largura, "·")
-    print(f"{C.CINZA}│{C.ROXO}{C.NEGRITO}{titulo_centralizado}{C.RESET}{C.CINZA}│{C.RESET}")
+    """Imprime título centralizado com bordas estilo hacker"""
+    largura = obter_largura_terminal() - 2
+    titulo_fmt = f"► {titulo} ◄"
+    titulo_centralizado = titulo_fmt.center(largura, "═")
+    print(f"{C.CIANO}{C.NEGRITO}{titulo_centralizado}{C.RESET}")
+
+def imprimir_secao(titulo):
+    """Imprime título de seção com efeito Mr. Robot"""
+    limpar_tela()
+    largura = obter_largura_terminal()
+    print()
+    imprimir_linha("═", "dupla")
+    imprimir_titulo(titulo)
+    imprimir_linha("═", "fundo")
 
 def imprimir_texto(texto, cor=C.BRANCO, alinhamento="left"):
-    """Imprime texto com bordas laterais"""
-    largura = obter_largura_terminal() - 4
+    """Imprime texto sem bordas laterais"""
+    largura = obter_largura_terminal() - 2
     linhas = textwrap.wrap(texto, width=largura)
     
     for linha in linhas:
@@ -53,118 +75,125 @@ def imprimir_texto(texto, cor=C.BRANCO, alinhamento="left"):
             linha_formatada = linha.rjust(largura)
         else:
             linha_formatada = linha.ljust(largura)
-        print(f"{C.CINZA}│{C.RESET}{cor}{linha_formatada}{C.RESET}{C.CINZA}│{C.RESET}")
+        print(f"{cor}{linha_formatada}{C.RESET}")
 
 def imprimir_item(numero, titulo, descricao, cor=C.CIANO):
-    """Imprime um item do menu"""
-    largura = obter_largura_terminal() - 4
-    numero_titulo = f"{C.VERDE}{numero}. {C.AMARELO}{titulo}{C.RESET}"
+    """Imprime um item do menu com seta hacker"""
+    largura = obter_largura_terminal() - 2
+    numero_titulo = f"{C.AMARELO}[{numero}]{C.RESET} {C.CIANO}{titulo}{C.RESET}"
     linha = f"{numero_titulo}"
     
-    print(f"{C.CINZA}│{C.RESET} {linha.ljust(largura-1)}{C.CINZA}│{C.RESET}")
+    print(f" {linha}")
     
-    # Descrição
+    # Descrição com símbolo hacker
     if descricao:
-        desc_linhas = textwrap.wrap(f"{C.CINZA}  → {descricao}", width=largura-3)
+        desc_linhas = textwrap.wrap(f"{C.CINZA}    ➜ {descricao}", width=largura-3)
         for linha_desc in desc_linhas:
-            print(f"{C.CINZA}│{C.RESET}{linha_desc.ljust(largura-1)}{C.CINZA}│{C.RESET}")
+            print(f"{linha_desc}")
 
 def imprimir_comando(comando, exemplo, descricao):
-    """Imprime um comando com exemplo e descrição"""
-    largura = obter_largura_terminal() - 4
+    """Imprime um comando com formatação hacker"""
+    largura = obter_largura_terminal() - 2
     
-    # Comando
-    comando_line = f"{C.AZUL}⌨ {C.CIANO}{comando}{C.RESET}"
-    print(f"{C.CINZA}│{C.RESET} {comando_line.ljust(largura-1)}{C.CINZA}│{C.RESET}")
+    # Comando em destaque
+    comando_line = f"{C.AMARELO}$ {C.CIANO}{C.NEGRITO}{comando}{C.RESET}"
+    print(f" {comando_line}")
     
-    # Exemplo
+    # Exemplo em verde (cor de terminal hacker)
     if exemplo:
-        exemplo_linhas = textwrap.wrap(f"{C.CINZA}  📟 Exemplo: {C.VERDE}{exemplo}", width=largura-3)
+        exemplo_linhas = textwrap.wrap(f"{C.CINZA}  ├─ {C.VERDE}{exemplo}", width=largura-3)
         for linha_ex in exemplo_linhas:
-            print(f"{C.CINZA}│{C.RESET}{linha_ex.ljust(largura-1)}{C.CINZA}│{C.RESET}")
+            print(f"{linha_ex}")
     
-    # Descrição
+    # Descrição em cinza
     if descricao:
-        desc_linhas = textwrap.wrap(f"{C.CINZA}  💡 {descricao}", width=largura-3)
+        desc_linhas = textwrap.wrap(f"{C.CINZA}  └─ {descricao}", width=largura-3)
         for linha_desc in desc_linhas:
-            print(f"{C.CINZA}│{C.RESET}{linha_desc.ljust(largura-1)}{C.CINZA}│{C.RESET}")
+            print(f"{linha_desc}")
     
-    print(f"{C.CINZA}│{C.RESET}{' ' * (largura-1)}{C.CINZA}│{C.RESET}")
+    print()
 
 def limpar_tela():
     """Limpa a tela do terminal"""
     os.system('cls' if os.name == 'nt' else 'clear')
 
-def digitar(texto, delay=0.01, cor=C.BRANCO):
-    """Efeito de digitação estilo terminal"""
-    sys.stdout.write(cor)
-    for char in texto:
-        sys.stdout.write(char)
-        sys.stdout.flush()
-        time.sleep(delay)
-    sys.stdout.write(C.RESET)
+# Usar a função padronizada de digitação do utils
+from utils.terminal_kali import digitar as _digitar_padrao
+
+def digitar(texto, delay=0.01, cor=C.BRANCO, fim='\n'):
+    """Wrapper compatível que encaminha para `utils.terminal_kali.digitar`.
+
+    Mantém assinatura simples usada historicamente neste módulo.
+    """
+    return _digitar_padrao(texto, delay=delay, cor=cor, fim=fim)
 
 def exibir_banner():
-    """Exibe banner estilo Mr. Robot"""
+    """Exibe banner estilo Mr. Robot com efeitos"""
     limpar_tela()
     largura = obter_largura_terminal()
     
-    print(f"\n{C.REVERSO}{' ' * largura}{C.RESET}")
+    # Banner principal
+    banner_linhas = [
+        f"{C.VERDE}{'═' * largura}{C.RESET}",
+        f"{C.CIANO}{C.NEGRITO}  ███▒░ HACKING MANUAL - ROOT EVOLUTION v2.0 ░▒███{C.RESET}",
+        f"{C.CINZA}  [*] Sistema   : GNU/Linux  │  [*] Acesso: root  │  [*] Status: Conectado{C.RESET}",
+        f"{C.CINZA}  [*] IP Local  : 192.168.1.108  │  [*] Gateway: Tor  │  [*] Anonimato: 100%{C.RESET}",
+        f"{C.VERDE}{'═' * largura}{C.RESET}",
+    ]
     
-    banner = f"""
-{C.FUNDO_VERMELHO}{C.BRANCO}{' ' * largura}{C.RESET}
-{C.FUNDO_VERMELHO}{C.BRANCO}  ███▄ ▄███▓ ▄▄▄       ██▀███   ▒█████   █     █░  ██████   {C.RESET}
-{C.FUNDO_VERMELHO}{C.BRANCO} ▓██▒▀█▀ ██▒▒████▄    ▓██ ▒ ██▒▒██▒  ██▒▓█░ █ ░█░▒██    ▒   {C.RESET}
-{C.FUNDO_VERMELHO}{C.BRANCO} ▓██    ▓██░▒██  ▀█▄  ▓██ ░▄█ ▒▒██░  ██▒▒█░ █ ░█ ░ ▓██▄     {C.RESET}
-{C.FUNDO_VERMELHO}{C.BRANCO} ▒██    ▒██ ░██▄▄▄▄██ ▒██▀▀█▄  ▒██   ██░░█░ █ ░█   ▒   ██▒  {C.RESET}
-{C.FUNDO_VERMELHO}{C.BRANCO} ▒██▒   ░██▒ ▓█   ▓██▒░██▓ ▒██▒░ ████▓▒░░░██▒██▓ ▒██████▒▒  {C.RESET}
-{C.FUNDO_VERMELHO}{C.BRANCO} ░ ▒░   ░  ░ ▒▒   ▓▒█░░ ▒▓ ░▒▓░░ ▒░▒░▒░ ░ ▓░▒ ▒  ▒ ▒▓▒ ▒ ░  {C.RESET}
-{C.FUNDO_VERMELHO}{C.BRANCO} ░  ░      ░  ▒   ▒▒ ░  ░▒ ░ ▒░  ░ ▒ ▒░   ▒ ░ ░  ░ ░▒  ░ ░  {C.RESET}
-{C.FUNDO_VERMELHO}{C.BRANCO} ░      ░     ░   ▒     ░░   ░ ░ ░ ░ ▒    ░   ░  ░  ░  ░    {C.RESET}
-{C.FUNDO_VERMELHO}{C.BRANCO}        ░         ░  ░   ░         ░ ░      ░          ░    {C.RESET}
-{C.FUNDO_VERMELHO}{C.BRANCO}{' ' * largura}{C.RESET}
-    """
+    for linha in banner_linhas:
+        print(linha)
     
-    print(banner)
+    print()
     
-    print(f"{C.REVERSO}{C.FUNDO_VERMELHO}{C.BRANCO} MANUAL DE HACKING - ROOT EVOLUTION v2.0 ".center(largura) + f"{C.RESET}")
-    print(f"{C.REVERSO}{C.FUNDO_VERMELHO}{C.BRANCO} " + "█" * (largura - 2) + f" {C.RESET}")
-    print(f"{C.REVERSO}{C.FUNDO_VERMELHO}{C.BRANCO}  CONECTANDO AO SISTEMA... ACCESS: fsociety/root  ".center(largura) + f"{C.RESET}")
-    print(f"{C.REVERSO}{' ' * largura}{C.RESET}\n")
+    # Mensagem de acesso com digitação
+    print(f"{C.CINZA}[*] ", end="")
+    digitar("Acessando banco de dados do manual de hacking...", delay=0.01, cor=C.VERDE)
+    time.sleep(0.5)
+    print(f"{C.CINZA}[✓] {C.VERDE}Acesso concedido!{C.RESET}")
+    print()
 
 def exibir_manual():
-    """Exibe o manual completo de hacking"""
+    """Exibe o manual completo de hacking com estetica Mr. Robot"""
     while True:
         exibir_banner()
         
         # ÍNDICE PRINCIPAL
-        imprimir_linha()
-        imprimir_titulo("📖 MENU PRINCIPAL - SELECT AN OPTION")
-        imprimir_linha("─")
+        imprimir_linha("═", "dupla")
+        imprimir_titulo("📖 MENU PRINCIPAL - SELECIONE UMA OPÇÃO")
+        imprimir_linha("═", "fundo")
+        print()
         
         menu_itens = [
-            ("Comandos Básicos do Terminal", "Comandos essenciais para navegação"),
-            ("Manual de Comandos Linux", "Guia completo de comandos do Linux"),
-            ("Técnicas de Reconhecimento", "Coleta de informações e footprinting"),
-            ("Exploração de Redes", "SSH, FTP, varredura de portas"),
-            ("Ataques Web", "SQLi, XSS, CSRF, Directory Traversal"),
+            ("Comandos Básicos do Terminal", "Comandos essenciais para navegação e controle"),
+            ("Manual de Comandos Linux", "Guia completo de comandos do GNU/Linux"),
+            ("Técnicas de Reconhecimento", "Coleta de informações, footprinting e scanning"),
+            ("Exploração de Redes", "SSH, FTP, varredura de portas e vulnerabilidades"),
+            ("Ataques Web", "SQLi, XSS, CSRF, Directory Traversal, RCE"),
             ("Cracking de Senhas", "Força bruta, dicionários, hash cracking"),
-            ("Análise Forense", "Logs, investigação, rastreamento"),
-            ("Ofuscação e Anonimato", "VPN, TOR, proxies, anti-forense"),
+            ("Análise Forense", "Logs, investigação, rastreamento de atividades"),
+            ("Ofuscação e Anonimato", "VPN, TOR, proxies, anti-forense avançado"),
             ("Ferramentas Especiais", "Nmap, Metasploit, Wireshark, Burp Suite"),
-            ("Sair do Sistema", "Encerrar conexão")
+            ("Sair do Sistema", "Encerrar conexão e retornar")
         ]
         
         for i, (titulo, desc) in enumerate(menu_itens, 1):
             imprimir_item(str(i), titulo, desc)
         
-        imprimir_linha("─")
+        imprimir_linha("═", "inferior")
+        print()
         
         try:
-            escolha = input(f"\n{C.VERDE}{C.REVERSO} root@hacklab:~# {C.RESET} ").strip()
+            escolha = input(f"{C.VERDE}root@manual:~${C.RESET} ").strip()
             
             if escolha == "10" or escolha.lower() == "exit" or escolha == "0":
-                print(f"\n{C.VERMELHO}[!] Connection terminated.{C.RESET}")
+                limpar_tela()
+                print(f"\n{C.VERDE}╔════════════════════════════════════════════╗{C.RESET}")
+                print(f"{C.VERDE}║{C.CIANO}  [*] Encerrando conexão do manual...{C.RESET}{C.VERDE}       ║{C.RESET}")
+                print(f"{C.VERDE}║{C.VERMELHO}  [!] Limpando rastros...{C.RESET}{C.VERDE}                  ║{C.RESET}")
+                print(f"{C.VERDE}║{C.AMARELO}  [✓] Desconectado com sucesso!{C.RESET}{C.VERDE}            ║{C.RESET}")
+                print(f"{C.VERDE}╚════════════════════════════════════════════╝{C.RESET}\n")
+                time.sleep(1)
                 break
             elif escolha == "1":
                 mostrar_comandos_basicos()
@@ -185,45 +214,47 @@ def exibir_manual():
             elif escolha == "9":
                 mostrar_ferramentas()
             else:
-                print(f"\n{C.VERMELHO}[!] Invalid option. Type 1-10 or 'exit'{C.RESET}")
-                time.sleep(1)
+                print(f"\n{C.VERMELHO}[!] Opção inválida. Digite 1-10 ou 'exit'{C.RESET}")
+                time.sleep(1.5)
                 
         except KeyboardInterrupt:
-            print(f"\n{C.VERMELHO}[!] Connection interrupted by user.{C.RESET}")
+            print(f"\n\n{C.VERMELHO}[!] Conexão interrompida pelo usuário.{C.RESET}")
+            time.sleep(1)
             break
 
 def mostrar_comandos_basicos():
-    """Seção 1: Comandos básicos do terminal"""
-    limpar_tela()
-    imprimir_linha()
-    imprimir_titulo("1. COMANDOS BÁSICOS DO TERMINAL")
-    imprimir_linha("─")
+    """Seção 1: Comandos básicos do terminal com estetica Mr. Robot"""
+    imprimir_secao("1. COMANDOS BÁSICOS DO TERMINAL")
+    print()
     
     comandos = [
-        ("ls", "ls -la", "Lista arquivos com detalhes (todos incluindo ocultos)"),
-        ("cd", "cd /var/www && cd ..", "Navega entre diretórios"),
-        ("pwd", "pwd", "Mostra diretório atual completo"),
-        ("cp", "cp arquivo.txt backup/", "Copia arquivos/diretórios"),
-        ("mv", "mv antigo.txt novo.txt", "Move ou renomeia arquivos"),
-        ("rm", "rm -rf pasta/", "Remove arquivos/diretórios (CUIDADO!)"),
-        ("mkdir", "mkdir nova_pasta", "Cria novo diretório"),
-        ("cat", "cat config.txt | grep 'password'", "Exibe conteúdo de arquivo"),
-        ("echo", "echo 'texto' > arquivo.txt", "Escreve em arquivos"),
-        ("nano/vim", "nano script.sh", "Editores de texto no terminal"),
-        ("chmod", "chmod +x script.sh", "Altera permissões de arquivo"),
-        ("sudo", "sudo apt update", "Executa comando como superusuário"),
-        ("man", "man grep", "Manual de ajuda de comandos"),
+        ("ls", "ls -la", "Lista arquivos com detalhes (incluindo ocultos)"),
+        ("cd", "cd /var/www && cd ..", "Navega entre diretórios do sistema"),
+        ("pwd", "pwd", "Mostra o caminho completo do diretório atual"),
+        ("cp", "cp arquivo.txt backup/", "Copia arquivos ou diretórios inteiros"),
+        ("mv", "mv antigo.txt novo.txt", "Move ou renomeia arquivos/pastas"),
+        ("rm", "rm -rf pasta/", "Remove arquivos/diretórios (⚠️ CUIDADO!)"),
+        ("mkdir", "mkdir nova_pasta", "Cria um novo diretório"),
+        ("cat", "cat config.txt | grep 'password'", "Exibe conteúdo de arquivo ou combina"),
+        ("echo", "echo 'texto' > arquivo.txt", "Escreve texto em arquivo ou exibe"),
+        ("nano/vim", "nano script.sh", "Editores de texto poderosos"),
+        ("chmod", "chmod +x script.sh", "Altera permissões de arquivo (modo hacker)"),
+        ("sudo", "sudo apt update", "Executa comando com privilégios de root"),
+        ("man", "man grep", "Acessa manual de ajuda de qualquer comando"),
         ("clear", "clear", "Limpa a tela do terminal"),
-        ("whoami", "whoami", "Mostra usuário atual"),
-        ("history", "history | tail -20", "Histórico de comandos"),
+        ("whoami", "whoami", "Mostra qual usuário você está usando"),
+        ("history", "history | tail -20", "Mostra histórico de últimos comandos"),
     ]
     
     for cmd, exemplo, desc in comandos:
         imprimir_comando(cmd, exemplo, desc)
     
-    imprimir_linha("─")
-    imprimir_texto(f"{C.ROXO}💡 DICA: Use TAB para autocompletar e Ctrl+C para cancelar comandos.{C.RESET}", C.ROXO)
-    input(f"\n{C.CINZA}[ Press ENTER to return ]{C.RESET}")
+    imprimir_linha("─", "inferior")
+    print()
+    imprimir_texto(f"{C.AMARELO}[*] DICA: Use TAB para autocompletar e Ctrl+C para cancelar!{C.RESET}", C.AMARELO)
+    imprimir_linha("─", "inferior")
+    input(f"\n{C.CINZA}[ Pressione ENTER para retornar ao menu ]{C.RESET}")
+
 
 def mostrar_manual_linux():
     """MANUAL COMPLETO DE COMANDOS LINUX"""
@@ -272,32 +303,31 @@ def mostrar_manual_linux():
             print(f"{C.VERMELHO}[!] Invalid option{C.RESET}")
 
 def mostrar_categoria_arquivos():
-    """Categoria: Sistema de Arquivos"""
-    limpar_tela()
-    imprimir_linha()
-    imprimir_titulo("📁 SISTEMA DE ARQUIVOS")
-    imprimir_linha("─")
+    """Categoria: Sistema de Arquivos com estetica Mr. Robot"""
+    imprimir_secao("📁 SISTEMA DE ARQUIVOS")
+    print()
     
     comandos = [
         ("ls", "ls -lh", "Lista com tamanhos legíveis para humanos"),
-        ("tree", "tree -L 3", "Mostra estrutura em árvore"),
-        ("find", "find / -name '*.conf' -type f", "Busca arquivos"),
-        ("locate", "locate passwd", "Busca rápida no banco de dados"),
-        ("stat", "stat arquivo.txt", "Informações detalhadas do arquivo"),
-        ("du", "du -sh * | sort -rh", "Uso de espaço por diretório"),
-        ("df", "df -h", "Espaço livre em disco"),
-        ("mount", "mount | grep /dev/sd", "Sistemas de arquivos montados"),
-        ("ln", "ln -s /caminho/origem atalho", "Cria link simbólico"),
-        ("touch", "touch novo_arquivo.txt", "Cria arquivo vazio"),
-        ("file", "file arquivo.desconhecido", "Identifica tipo de arquivo"),
-        ("diff", "diff arquivo1.txt arquivo2.txt", "Compara arquivos"),
-        ("rsync", "rsync -avz origem/ destino/", "Sincroniza diretórios"),
+        ("tree", "tree -L 3", "Mostra estrutura em árvore do diretório"),
+        ("find", "find / -name '*.conf' -type f", "Busca arquivos por padrão em todo sistema"),
+        ("locate", "locate passwd", "Busca rápida no banco de dados do sistema"),
+        ("stat", "stat arquivo.txt", "Informações detalhadas do arquivo (metadados)"),
+        ("du", "du -sh * | sort -rh", "Uso de espaço em disco por diretório"),
+        ("df", "df -h", "Espaço livre em disco em todos os pontos"),
+        ("mount", "mount | grep /dev/sd", "Sistemas de arquivos montados no sistema"),
+        ("ln", "ln -s /caminho/origem atalho", "Cria link simbólico (atalho para arquivo)"),
+        ("touch", "touch novo_arquivo.txt", "Cria arquivo vazio ou altera timestamp"),
+        ("file", "file arquivo.desconhecido", "Identifica tipo de arquivo automaticamente"),
+        ("diff", "diff arquivo1.txt arquivo2.txt", "Compara dois arquivos e mostra diferenças"),
+        ("rsync", "rsync -avz origem/ destino/", "Sincroniza diretórios de forma eficiente"),
     ]
     
     for cmd, exemplo, desc in comandos:
         imprimir_comando(cmd, exemplo, desc)
     
-    input(f"\n{C.CINZA}[ Press ENTER to return ]{C.RESET}")
+    imprimir_linha("─", "inferior")
+    input(f"\n{C.CINZA}[ Pressione ENTER para retornar ]{C.RESET}")
 
 def mostrar_categoria_processos():
     """Categoria: Processos"""
@@ -733,6 +763,26 @@ def mostrar_ferramentas():
     imprimir_linha("─")
     imprimir_texto(f"{C.ROXO}💡 No ROOT EVOLUTION, você pode comprar versões virtuais dessas ferramentas no mercado!{C.RESET}", C.ROXO)
     input(f"\n{C.CINZA}[ Press ENTER to return ]{C.RESET}")
+
+# ========== CLASSE PARA INTEGRAÇÃO COM ROOT_EVOLUTION ==========
+
+class ManualHacking:
+    """Classe wrapper para integração do manual com o ROOT EVOLUTION"""
+    
+    def __init__(self):
+        """Inicializa o manual de hacking"""
+        pass
+    
+    def mostrar_menu(self):
+        """Exibe o menu principal do manual de hacking"""
+        try:
+            exibir_manual()
+        except KeyboardInterrupt:
+            pass  # Apenas retorna ao menu anterior
+        except Exception as e:
+            print(f"\n{C.VERMELHO}[!] Erro ao exibir manual: {e}{C.RESET}")
+
+# ========== EXECUÇÃO PRINCIPAL ==========
 
 # Execução principal
 if __name__ == "__main__":

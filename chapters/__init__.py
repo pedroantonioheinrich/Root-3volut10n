@@ -4,121 +4,262 @@ Pacote CHAPTERS - Módulos dos capítulos do jogo ROOT EVOLUTION
 
 Este arquivo transforma o diretório 'chapters' em um pacote Python válido
 e facilita a importação dos capítulos.
+
+Capítulos Disponíveis:
+- chapter_01: O Protocolo da Traição
+- chapter_02: O Vazio entre os Bits (em desenvolvimento)
+- chapter_03: O Primeiro Chamado (em desenvolvimento)
+- chapter_04: A Mentira Benevolente (em desenvolvimento)
+- chapter_05: Rootkit na Realidade (em desenvolvimento)
 """
 
 import os
 import sys
+import importlib
+import json
+from pathlib import Path
+from datetime import datetime
 
 # Adiciona o diretório pai ao path para facilitar imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-# Lista todos os capítulos disponíveis
-__all__ = ['chapter_01', 'chapter_02']  # Adicione mais capítulos conforme criar
 
 # Versão do pacote
 __version__ = '1.0.0'
 __author__ = 'Root Evolution Team'
 __description__ = 'Capítulos do jogo de hacking ROOT EVOLUTION'
 
-# Importações facilitadas
+# Cores para output
 try:
-    from ..backup_chapters.chapter_01 import iniciar as iniciar_capitulo_1
-    __all__.append('iniciar_capitulo_1')
-except ImportError as e:
-    print(f"[WARNING] Não foi possível importar chapter_01: {e}")
-
-try:
-    from ..backup_chapters.chapter_02 import iniciar as iniciar_capitulo_2
-    __all__.append('iniciar_capitulo_2')
+    from utils.terminal_kali import C
 except ImportError:
-    pass  # chapter_02 pode não existir ainda
+    class C:
+        VERDE = '\033[92m'
+        VERMELHO = '\033[91m'
+        CINZA = '\033[90m'
+        CIANO = '\033[96m'
+        RESET = '\033[0m'
 
-# Função utilitária para listar capítulos disponíveis
+
+# ========== FUNÇÕES UTILITÁRIAS ==========
+
 def listar_capitulos():
     """Lista todos os capítulos disponíveis no pacote."""
     capitulos = []
     
     # Procura por arquivos chapter_*.py no diretório
-    for arquivo in os.listdir(os.path.dirname(__file__)):
+    diretorio = os.path.dirname(__file__)
+    for arquivo in os.listdir(diretorio):
         if arquivo.startswith('chapter_') and arquivo.endswith('.py'):
             nome = arquivo[:-3]  # Remove .py
-            capitulos.append(nome)
+            numero = int(nome.split('_')[1])
+            capitulos.append((numero, nome))
     
-    return sorted(capitulos)
+    return sorted(capitulos, key=lambda x: x[0])
 
-# Função para carregar um capítulo específico
+
 def carregar_capitulo(numero):
     """
-    Carrega e retorna a função 'iniciar' de um capítulo específico.
+    Carrega um capítulo específico dinamicamente.
     
     Args:
-        numero (int ou str): Número do capítulo (ex: 1, 2, "01", "02")
+        numero: Número do capítulo (ex: 1 para chapter_01)
     
     Returns:
-        function: Função 'iniciar' do capítulo
-    
-    Raises:
-        ImportError: Se o capítulo não existir
+        Módulo do capítulo ou None se não encontrado
     """
-    # Normaliza o número do capítulo
-    if isinstance(numero, int):
-        numero = f"{numero:02d}"
-    else:
-        numero = str(numero).zfill(2)
+    nome_capitulo = f'chapter_{numero:02d}'
     
-    nome_modulo = f"chapter_{numero}"
+    try:
+        # Tentar importar o capítulo
+        modulo = importlib.import_module(f'.{nome_capitulo}', package=__name__)
+        return modulo
+    except ImportError as e:
+        print(f"{C.VERMELHO}[!] Capítulo {numero} não encontrado: {e}{C.RESET}")
+        return None
+
+
+def executar_capitulo(numero, dados_jogador, arquivo_save):
+    """
+    Executa um capítulo específico.
     
-    if nome_modulo not in __all__:
-        raise ImportError(f"Capítulo {numero} não encontrado")
+    Args:
+        numero: Número do capítulo
+        dados_jogador: Dicionário com dados do personagem
+        arquivo_save: Caminho do arquivo de save
     
-    # Importação dinâmica
-    modulo = __import__(f".{nome_modulo}", fromlist=['iniciar'], level=1)
+    Returns:
+        Dicionário com dados atualizados do jogador ou None se erro
+    """
+    modulo = carregar_capitulo(numero)
+    
+    if modulo is None:
+        return None
     
     if not hasattr(modulo, 'iniciar'):
-        raise AttributeError(f"Módulo {nome_modulo} não tem função 'iniciar'")
+        print(f"{C.VERMELHO}[!] Capítulo {numero} não possui função 'iniciar'{C.RESET}")
+        return None
     
-    return modulo.iniciar
+    try:
+        resultado = modulo.iniciar(dados_jogador, arquivo_save)
+        return resultado
+    except Exception as e:
+        print(f"{C.VERMELHO}[!] Erro ao executar capítulo {numero}: {e}{C.RESET}")
+        return None
 
-# Função para verificar a integridade dos capítulos
-def verificar_integridade():
-    """Verifica se todos os capítulos estão funcionando corretamente."""
-    resultados = {}
-    
-    for cap in listar_capitulos():
-        try:
-            # Tenta importar o módulo
-            modulo = __import__(f".{cap}", fromlist=['iniciar'], level=1)
-            
-            # Verifica se tem a função 'iniciar'
-            if hasattr(modulo, 'iniciar'):
-                resultados[cap] = {
-                    'status': 'OK',
-                    'tem_iniciar': True
-                }
-            else:
-                resultados[cap] = {
-                    'status': 'ERRO',
-                    'tem_iniciar': False,
-                    'erro': 'Função "iniciar" não encontrada'
-                }
-                
-        except Exception as e:
-            resultados[cap] = {
-                'status': 'ERRO',
-                'erro': str(e)
-            }
-    
-    return resultados
 
-# Informações de debug quando executado diretamente
+def obter_proximo_capitulo(dados_jogador):
+    """
+    Determina qual é o próximo capítulo a ser jogado.
+    
+    Args:
+        dados_jogador: Dicionário com dados do personagem
+    
+    Returns:
+        Número do próximo capítulo
+    """
+    capitulos_completados = dados_jogador.get('completed_chapters', [])
+    capitulo_atual = dados_jogador.get('current_chapter', 1)
+    
+    # Se completou capítulos, pega o próximo
+    if capitulos_completados:
+        return max(capitulos_completados) + 1
+    
+    # Caso contrário, retorna o capítulo atual
+    return capitulo_atual
+
+
+def obter_ultimo_capitulo_jogado(dados_jogador):
+    """Retorna qual foi o último capítulo jogado."""
+    capitulos_completados = dados_jogador.get('completed_chapters', [])
+    
+    if capitulos_completados:
+        return max(capitulos_completados)
+    
+    return 0
+
+
+# ========== IMPORTAÇÕES FACILITADAS ==========
+
+def importar_capitulo_1():
+    """Importa o capítulo 1"""
+    try:
+        from . import chapter_01
+        return chapter_01
+    except ImportError:
+        print(f"{C.VERMELHO}[!] Capítulo 1 não encontrado{C.RESET}")
+        return None
+
+
+# ========== INFORMAÇÕES DOS CAPÍTULOS ==========
+
+CAPITULOS_INFO = {
+    1: {
+        'nome': 'O Protocolo da Traição',
+        'descricao': 'Brasília, 02:47 AM. Descubra a traição de Juliana hackando seu servidor.',
+        'dificuldade': 'Fácil',
+        'foco': 'SSH, manipulação de arquivos',
+        'arquivo': 'chapter_01.py',
+        'ativo': True
+    },
+    2: {
+        'nome': 'O Vazio entre os Bits',
+        'descricao': 'Três semanas depois. A depressão consome, mas o código faz sentido.',
+        'dificuldade': 'Médio',
+        'foco': 'Criptografia básica, anonimato digital',
+        'arquivo': 'chapter_02.py',
+        'ativo': False
+    },
+    3: {
+        'nome': 'O Primeiro Chamado',
+        'descricao': 'Uma mensagem misteriosa: "Vimos seu trabalho. Procure por fsociety.br"',
+        'dificuldade': 'Médio',
+        'foco': 'SQL Injection, bypass de autenticação',
+        'arquivo': 'chapter_03.py',
+        'ativo': False
+    },
+    4: {
+        'nome': 'A Mentira Benevolente',
+        'descricao': 'Seis meses com os Anônimos. As missões ficam mais complexas.',
+        'dificuldade': 'Difícil',
+        'foco': 'Análise forense, data mining',
+        'arquivo': 'chapter_04.py',
+        'ativo': False
+    },
+    5: {
+        'nome': 'Rootkit na Realidade',
+        'descricao': 'Os Anônimos preparam "Operação Raiz". Você escolhe seu caminho.',
+        'dificuldade': 'Muito Difícil',
+        'foco': 'Todas as habilidades anteriores',
+        'arquivo': 'chapter_05.py',
+        'ativo': False
+    }
+}
+
+
+def obter_info_capitulo(numero):
+    """Retorna informações sobre um capítulo específico."""
+    return CAPITULOS_INFO.get(numero, None)
+
+
+def listar_info_capitulos():
+    """Lista informações sobre todos os capítulos."""
+    return CAPITULOS_INFO
+
+
+# ========== VALIDAÇÃO DE CAPÍTULOS ==========
+
+def validar_capitulos():
+    """Valida quais capítulos estão disponíveis."""
+    diretorio = Path(__file__).parent
+    
+    print(f"{C.CIANO}Validando capítulos...{C.RESET}\n")
+    
+    capitulos_encontrados = []
+    
+    for numero, info in CAPITULOS_INFO.items():
+        arquivo = diretorio / info['arquivo']
+        
+        if arquivo.exists():
+            print(f"{C.VERDE}[✓]{C.RESET} Capítulo {numero}: {info['nome']}")
+            capitulos_encontrados.append(numero)
+        else:
+            print(f"{C.CINZA}[○]{C.RESET} Capítulo {numero}: {info['nome']} (não encontrado)")
+    
+    print(f"\n{C.CIANO}Total: {len(capitulos_encontrados)} capítulos disponíveis{C.RESET}")
+    
+    return capitulos_encontrados
+
+
+# Exportar funções principais
+__all__ = [
+    'listar_capitulos',
+    'carregar_capitulo',
+    'executar_capitulo',
+    'obter_proximo_capitulo',
+    'obter_ultimo_capitulo_jogado',
+    'importar_capitulo_1',
+    'obter_info_capitulo',
+    'listar_info_capitulos',
+    'validar_capitulos',
+    'CAPITULOS_INFO'
+]
+
+
 if __name__ == "__main__":
-    print(f"=== Pacote CHAPTERS v{__version__} ===")
+    # Validar capítulos quando executado diretamente
+    validar_capitulos()
+    
+    print(f"\n=== Pacote CHAPTERS v{__version__} ===")
     print(f"Descrição: {__description__}")
     print(f"Autor: {__author__}")
     print(f"\nCapítulos disponíveis: {listar_capitulos()}")
     print(f"\nIntegridade:")
-    for cap, info in verificar_integridade().items():
+    
+    # Verificar integridade dos capítulos
+    integridade = verificar_integridade()
+    for cap_tuple, info in integridade.items():
+        numero, nome = cap_tuple
         status = info['status']
-        print(f"  {cap}: {status}")
+        print(f"  {nome}: {status}")
         if status == 'ERRO':
             print(f"    Erro: {info.get('erro', 'Desconhecido')}")

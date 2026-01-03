@@ -423,7 +423,7 @@ class IntroMenu:
                 
             if cmd.startswith(f"{self.VERDE}"):
                 # É um comando - digitar com delay
-                self._efeito_digitacao(f"└──╼ {self.CIANO}#{self.RESET} {cmd}", delay=0.01, end="")
+                self._efeito_digitacao(f"└──╼ {self.CIANO}#{self.RESET} {cmd}", delay=0.01, fim="")
                 print()
                 time.sleep(0.3)
             elif cmd.strip() == "":
@@ -601,12 +601,16 @@ class IntroMenu:
         
         print("\n" * (self.term_height // 3))
         
-        # Mensagem de skip
+        # Mensagem de skip - calcular comprimento SEM cores ANSI
+        prompt_text = "Pressione ENTER para pular introdução"
+        prompt2_text = "ou aguarde para assistir a sequência completa"
+        
         prompt = f"{self.CINZA}⏎ {self.CIANO}Pressione {self.BRANCO}ENTER{self.CIANO} para pular introdução{self.RESET}"
         prompt2 = f"{self.CINZA}⏎ {self.CIANO}ou aguarde para assistir a sequência completa{self.RESET}"
         
-        espacamento = " " * ((self.term_width - len(prompt)) // 2)
-        espacamento2 = " " * ((self.term_width - len(prompt2)) // 2)
+        # Centralização correta sem contar códigos ANSI
+        espacamento = " " * ((self.term_width - len(prompt_text)) // 2)
+        espacamento2 = " " * ((self.term_width - len(prompt2_text)) // 2)
         
         print(espacamento + prompt)
         print(espacamento2 + prompt2)
@@ -615,13 +619,19 @@ class IntroMenu:
         
         # Contador regressivo
         contador = 5
-        texto_contador = f"{self.CINZA}Aguarde {self.BRANCO}{contador}{self.CINZA} segundos...{self.RESET}"
-        espacamento3 = " " * ((self.term_width - len(texto_contador)) // 2)
+        texto_contador_base = "Aguarde X segundos..."
         
-        # Thread para detectar Enter
+        # Thread para detectar Enter com sincronização
+        enter_pressionado = threading.Event()
+        
         def esperar_enter():
-            input()  # Espera Enter
-            self.pular_introducao = True
+            try:
+                input()  # Espera Enter
+                enter_pressionado.set()
+                self.pular_introducao = True
+            except (EOFError, KeyboardInterrupt):
+                enter_pressionado.set()
+                self.pular_introducao = True
         
         # Iniciar thread para detectar Enter
         thread_enter = threading.Thread(target=esperar_enter, daemon=True)
@@ -629,11 +639,12 @@ class IntroMenu:
         
         # Mostrar contador
         for i in range(contador, 0, -1):
-            if self.pular_introducao:
+            if self.pular_introducao or enter_pressionado.is_set():
                 break
                 
+            texto_contador_display = f"Aguarde {i} segundos..."
             texto_contador = f"{self.CINZA}Aguarde {self.BRANCO}{i}{self.CINZA} segundos...{self.RESET}"
-            espacamento3 = " " * ((self.term_width - len(texto_contador)) // 2)
+            espacamento3 = " " * ((self.term_width - len(texto_contador_display)) // 2)
             
             # Voltar à linha do contador
             if i < contador:
@@ -642,7 +653,7 @@ class IntroMenu:
             
             # Esperar 1 segundo ou até Enter ser pressionado
             for _ in range(10):
-                if self.pular_introducao:
+                if self.pular_introducao or enter_pressionado.is_set():
                     break
                 time.sleep(0.1)
 
@@ -677,7 +688,7 @@ class IntroMenu:
         # Animar logo aparecendo
         for linha in logo.split('\n'):
             if linha.strip():
-                self._efeito_digitacao(linha, delay=0.01, cor=self.VERDE, end="")
+                self._efeito_digitacao(linha, delay=0.01, cor=self.VERDE, fim="")
                 print()
         
         
@@ -887,7 +898,7 @@ class IntroMenu:
                     self._informacoes_sistema()
                     
                 elif escolha == "0":
-                    if self._confirmar_saida("Deseja realmente sair do jogo?"):
+                    if self._confirmar_saida():
                         self._sair_jogo()
                         menu_ativo = False  # Para o loop
                         self.running = False  # Para o programa
@@ -898,18 +909,22 @@ class IntroMenu:
                     time.sleep(1)
                     
             except KeyboardInterrupt:
-                if self._confirmar_saida("Interrompido. Deseja sair do jogo?"):
+                if self._confirmar_saida():
                     self._sair_jogo()
                     menu_ativo = False
                     self.running = False
 
-    def _confirmar_saida(self):
+    def _confirmar_saida(self, mensagem=None):
         """Confirma se o jogador quer realmente sair"""
         self._limpar_tela()
-        print(f"\n{' ' * ((self.term_width - 40) // 2)}{self.VERMELHO}TEM CERTEZA QUE DESEJA SAIR?{self.RESET}")
-        print(f"{' ' * ((self.term_width - 30) // 2)}{self.CINZA}[S] Sim  [N] Não{self.RESET}")
+        # Calcular comprimento SEM cores para centralização correta
+        msg_display = "TEM CERTEZA QUE DESEJA SAIR?"
+        print(f"\n{' ' * ((self.term_width - len(msg_display)) // 2)}{self.VERMELHO}{msg_display}{self.RESET}")
         
-        resposta = input(f"{' ' * ((self.term_width - 20) // 2)}{self.BRANCO}> {self.RESET}").strip().upper()
+        opcoes_text = "[S] Sim  [N] Não"
+        print(f"{' ' * ((self.term_width - len(opcoes_text)) // 2)}{self.CINZA}{opcoes_text}{self.RESET}")
+        
+        resposta = input(f"{' ' * ((self.term_width - 2) // 2)}{self.BRANCO}> {self.RESET}").strip().upper()
         
         return resposta == "S" or resposta == "SIM"
 
@@ -929,7 +944,8 @@ class IntroMenu:
             'arquivo': arquivo_save
         }
         
-        while self.running:
+        menu_jogo_ativo = True
+        while menu_jogo_ativo and self.running:
             self._limpar_tela()
             
             # Cabeçalho com informações do jogador
@@ -983,9 +999,12 @@ class IntroMenu:
                 elif escolha == "5":
                     self._salvar_jogo_atual(dados_jogador, arquivo_save)
                 elif escolha == "6":
-                    return  # Volta ao menu principal
+                    # Salvar antes de voltar
+                    self._salvar_jogo_atual(dados_jogador, arquivo_save)
+                    menu_jogo_ativo = False
                 elif escolha == "0":
                     self._sair_do_jogo(dados_jogador, arquivo_save)
+                    menu_jogo_ativo = False
                 else:
                     print(f"\n{' ' * ((self.term_width - 15) // 2)}{self.VERMELHO}NÚMERO INVÁLIDO{self.RESET}")
                     time.sleep(0.5)
@@ -997,31 +1016,40 @@ class IntroMenu:
     # ========== FUNÇÕES DO MENU DE JOGO ==========
     
     def _continuar_jogo(self, dados_jogador, arquivo_save):
-        """Continua o jogo do ponto onde parou"""
+        """Continua o jogo do ponto onde parou - executa chapter_01.py"""
         capitulo_atual = dados_jogador.get('current_chapter', 1)
         
-        # Verificar se há capítulos disponíveis
-        capitulos = self._verificar_capitulos_disponiveis()
-        
-        if not capitulos:
-            self._mostrar_erro_sem_capitulos()
-            return
-        
-        # Verificar se o capítulo atual existe
-        capitulo_existe = False
-        for cap in capitulos:
-            if cap['numero'] == capitulo_atual:
-                capitulo_existe = True
-                break
-        
-        if not capitulo_existe:
+        # Por enquanto, apenas chapter 1 está implementado
+        if capitulo_atual != 1:
             print(f"\n{' ' * ((self.term_width - 40) // 2)}{self.VERMELHO}Capítulo {capitulo_atual} não disponível!{self.RESET}")
-            print(f"{' ' * ((self.term_width - 40) // 2)}{self.CINZA}Último capítulo disponível: {capitulos[-1]['numero']}{self.RESET}")
-            time.sleep(2)
+            time.sleep(1.5)
             return
         
-        # Executar capítulo
-        self._executar_capitulo(capitulo_atual, dados_jogador, arquivo_save)
+        try:
+            # Importar e executar chapter_01
+            from chapters.chapter_01 import iniciar
+            
+            # Passar dados_jogador e arquivo_save
+            dados_atualizados = iniciar(dados_jogador, arquivo_save)
+            
+            # Atualizar dados do jogador com o resultado
+            if dados_atualizados:
+                dados_jogador.update(dados_atualizados)
+                # Salvar automaticamente após capítulo
+                self._salvar_jogo(dados_jogador, arquivo_save)
+            
+        except ImportError as e:
+            self._limpar_tela()
+            print(f"\n{' ' * ((self.term_width - 40) // 2)}{self.VERMELHO}ERRO: Não foi possível carregar o capítulo!{self.RESET}")
+            print(f"{' ' * ((self.term_width - 40) // 2)}{self.CINZA}Detalhes: {e}{self.RESET}")
+            time.sleep(2)
+        except Exception as e:
+            self._limpar_tela()
+            print(f"\n{' ' * ((self.term_width - 40) // 2)}{self.VERMELHO}ERRO durante execução do capítulo:{self.RESET}")
+            print(f"{' ' * ((self.term_width - 40) // 2)}{self.CINZA}{str(e)}{self.RESET}")
+            import traceback
+            traceback.print_exc()
+            time.sleep(2)
     
     def _mostrar_carteira_bitcoin(self, dados_jogador, arquivo_save):
         """Mostra a carteira de Bitcoin do jogador"""
@@ -1072,41 +1100,25 @@ class IntroMenu:
         input(f"\n{' ' * ((self.term_width - 25) // 2)}{self.CINZA}[ENTER PARA VOLTAR]{self.RESET}")
     
     def _abrir_manual_hacking(self):
-        """Abre o manual de hacking completo"""
-        self._limpar_tela()
-        print(f"\n{' ' * ((self.term_width - 40) // 2)}{self.CIANO}╔══════════════════════════════════════╗")
-        print(f"{' ' * ((self.term_width - 40) // 2)}{self.CIANO}║        MANUAL DE HACKING             ║")
-        print(f"{' ' * ((self.term_width - 40) // 2)}{self.CIANO}╚══════════════════════════════════════╝{self.RESET}\n")
-        
-        # Conteúdo do manual
-        comandos = [
-            ("ls", "Listar arquivos e diretórios"),
-            ("cd", "Mudar diretório"),
-            ("pwd", "Mostrar diretório atual"),
-            ("cat", "Exibir conteúdo de arquivo"),
-            ("cp", "Copiar arquivos"),
-            ("mv", "Mover/renomear arquivos"),
-            ("rm", "Remover arquivos"),
-            ("mkdir", "Criar diretório"),
-            ("ssh", "Conectar remotamente via SSH"),
-            ("scp", "Copiar arquivos via SSH"),
-            ("nmap", "Scanner de rede"),
-            ("whoami", "Mostrar usuário atual"),
-            ("sudo", "Executar com privilégios de root"),
-            ("chmod", "Alterar permissões de arquivo"),
-            ("grep", "Buscar padrões em arquivos"),
-            ("find", "Encontrar arquivos"),
-            ("ps", "Mostrar processos em execução"),
-            ("kill", "Terminar processo"),
-        ]
-        
-        for cmd, desc in comandos:
-            espacamento = " " * ((self.term_width - 50) // 2)
-            print(f"{espacamento}{self.VERDE}{cmd:15}{self.RESET} - {self.CINZA}{desc}{self.RESET}")
-        
-        print(f"\n{' ' * ((self.term_width - 50) // 2)}{self.AMARELO}Dica: Use 'manual' durante os capítulos para ajuda!{self.RESET}")
-        
-        input(f"\n{' ' * ((self.term_width - 25) // 2)}{self.CINZA}[ENTER PARA VOLTAR]{self.RESET}")
+        """Abre o manual de hacking completo do arquivo manual_hacking.py"""
+        try:
+            from manual_hacking import ManualHacking
+            manual = ManualHacking()
+            manual.mostrar_menu()
+        except ImportError:
+            self._limpar_tela()
+            print(f"\n{' ' * ((self.term_width - 40) // 2)}{self.VERMELHO}ERRO: manual_hacking.py não encontrado{self.RESET}")
+            print(f"{' ' * ((self.term_width - 50) // 2)}{self.CINZA}Certifique-se que o arquivo existe no diretório raiz.{self.RESET}")
+            input(f"\n{' ' * ((self.term_width - 25) // 2)}{self.CINZA}[ENTER PARA CONTINUAR]{self.RESET}")
+        except AttributeError:
+            self._limpar_tela()
+            print(f"\n{' ' * ((self.term_width - 40) // 2)}{self.VERMELHO}ERRO: Classe ManualHacking não encontrada{self.RESET}")
+            print(f"{' ' * ((self.term_width - 50) // 2)}{self.CINZA}Verifique se o arquivo manual_hacking.py possui a classe correta.{self.RESET}")
+            input(f"\n{' ' * ((self.term_width - 25) // 2)}{self.CINZA}[ENTER PARA CONTINUAR]{self.RESET}")
+        except Exception as e:
+            self._limpar_tela()
+            print(f"\n{' ' * ((self.term_width - 40) // 2)}{self.VERMELHO}ERRO ao abrir manual: {str(e)}{self.RESET}")
+            input(f"\n{' ' * ((self.term_width - 25) // 2)}{self.CINZA}[ENTER PARA CONTINUAR]{self.RESET}")
     
     def _mostrar_status_jogo(self, dados_jogador):
         """Mostra status completo do jogo"""
@@ -1282,19 +1294,30 @@ class IntroMenu:
             time.sleep(1)
     
     def _abrir_manual(self):
-        """Abre manual de hacking (versão resumida)"""
+        """Abre manual de hacking do arquivo manual_hacking.py"""
         self._limpar_tela()
         print(f"\n{' ' * ((self.term_width - 25) // 2)}{self.VERDE}ACESSANDO MANUAL...{self.RESET}")
         time.sleep(0.5)
         
         try:
-            # Tentar importar manual completo
+            # Importar manual completo
             from manual_hacking import ManualHacking
             manual = ManualHacking()
             manual.mostrar_menu()
         except ImportError:
-            # Manual simplificado
-            self._abrir_manual_hacking()
+            self._limpar_tela()
+            print(f"\n{' ' * ((self.term_width - 40) // 2)}{self.VERMELHO}ERRO: manual_hacking.py não encontrado{self.RESET}")
+            print(f"{' ' * ((self.term_width - 50) // 2)}{self.CINZA}Certifique-se que o arquivo existe no diretório raiz.{self.RESET}")
+            input(f"\n{' ' * ((self.term_width - 25) // 2)}{self.CINZA}[ENTER PARA CONTINUAR]{self.RESET}")
+        except AttributeError:
+            self._limpar_tela()
+            print(f"\n{' ' * ((self.term_width - 40) // 2)}{self.VERMELHO}ERRO: Classe ManualHacking não encontrada{self.RESET}")
+            print(f"{' ' * ((self.term_width - 50) // 2)}{self.CINZA}Verifique se o arquivo manual_hacking.py possui a classe correta.{self.RESET}")
+            input(f"\n{' ' * ((self.term_width - 25) // 2)}{self.CINZA}[ENTER PARA CONTINUAR]{self.RESET}")
+        except Exception as e:
+            self._limpar_tela()
+            print(f"\n{' ' * ((self.term_width - 40) // 2)}{self.VERMELHO}ERRO ao abrir manual: {str(e)}{self.RESET}")
+            input(f"\n{' ' * ((self.term_width - 25) // 2)}{self.CINZA}[ENTER PARA CONTINUAR]{self.RESET}")
     
     def _informacoes_sistema(self):
         """Informações do sistema"""
