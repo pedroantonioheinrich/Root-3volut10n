@@ -688,7 +688,7 @@ class IntroMenu:
         # Animar logo aparecendo
         for linha in logo.split('\n'):
             if linha.strip():
-                self._efeito_digitacao(linha, delay=0.01, cor=self.VERDE, fim="")
+                self._efeito_digitacao(linha, delay=0.00, cor=self.VERDE, fim="")
                 print()
         
         
@@ -879,14 +879,13 @@ class IntroMenu:
                 espacamento = " " * ((self.term_width - 25) // 2)
                 print(f"{espacamento}{cor}[{num}] {texto}{self.RESET}")
             
-            print()
+            print('Pressione [ENTER]...') ## temporario??? 
             
             try:
                 escolha = input(f"{' ' * ((self.term_width - 20) // 2)}{self.BRANCO}SELECIONE > {self.RESET}").strip()
                 
                 if escolha == "1":
                     self._novo_jogo()
-                    # Quando _novo_jogo() retornar, continua no menu
                     
                 elif escolha == "2":
                     self._carregar_jogo_menu()
@@ -967,13 +966,13 @@ class IntroMenu:
             
             # Opções do menu de jogo
             opcoes = [
-                ("1", "CONTINUAR JOGO", self.VERDE),
-                ("2", "CARTEIRA BITCOIN", self.AMARELO),
-                ("3", "MANUAL DE HACKING", self.CIANO),
-                ("4", "STATUS DO JOGO", self.BRANCO),
-                ("5", "SALVAR JOGO", self.VERDE),
-                ("6", "VOLTAR AO MENU PRINCIPAL", self.CINZA),
-                ("0", "SAIR DO JOGO", self.VERMELHO)
+                ("[1]", "CONTINUAR JOGO", self.VERDE),
+                ("[2]", "CARTEIRA BITCOIN", self.AMARELO),
+                ("[3]", "MANUAL DE HACKING", self.CIANO),
+                ("[4]", "STATUS DO JOGO", self.BRANCO),
+                ("[5]", "SALVAR JOGO", self.VERDE),
+                ("[6]", "VOLTAR AO MENU PRINCIPAL", self.CINZA),
+                ("[0]", "SAIR DO JOGO", self.VERMELHO)
             ]
             
             for num, texto, cor in opcoes:

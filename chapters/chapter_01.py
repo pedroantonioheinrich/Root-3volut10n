@@ -152,12 +152,12 @@ def header_kali_v2():
     largura = obter_largura_terminal()
     
     print(f"{C.VERDE}{'═' * largura}{C.RESET}")
-    print(f"{C.CIANO}{C.NEGRITO}{'[ROOT EVOLUTION - CAPÍTULO 1: O PROTOCOLO DA TRAIÇÃO]':^{largura}}{C.RESET}")
+    print(f"{C.CIANO}{C.NEGRITO}{'[ROOT EVOLUTION - CAPÍTULO 1: PROTOCOLO TRAIÇÃO]':^{largura}}{C.RESET}")
     print(f"{C.CINZA}{'Brasília, 02:47 AM | Terminal: Kali Linux 2024':^{largura}}{C.RESET}")
     print(f"{C.VERDE}{'═' * largura}{C.RESET}")
     print()
-    print(f"{C.AMARELO}💡 DICA: Digite 'menu' para retornar ao menu do jogo a qualquer momento.{C.RESET}")
-    print(f"{C.AMARELO}📖 Acesse 'manual' para consultar o Manual de Hacking durante o jogo.{C.RESET}")
+    print(f"{C.AMARELO}💡 DICA: Digite {C.RESET}{C.VERMELHO}'menu'{C.RESET}{C.AMARELO} para retornar ao menu do jogo a qualquer momento.{C.RESET}")
+    print(f"{C.AMARELO}📖 Acesse{C.RESET}{C.VERMELHO}'manual'{C.RESET}{C.AMARELO}para consultar o Manual de Hacking durante o jogo.{C.RESET}")
     print(f"{C.VERDE}{'═' * largura}{C.RESET}\n")
 
 
@@ -257,7 +257,7 @@ def prompt_until(cmd_expect, pensamento, state, fatigue=5, arquivo_save=None):
                 return False
             
             erro(f"Comando incorreto. ({tentativas}/{max_tentativas})")
-            print(f"{C.VERMELHO}[!] Ela ouviu o barulho do teclado e acelerou o passo!{C.RESET}")
+            print(f"{C.VERMELHO}[!] Ela ouviu o barulho do teclado e se levantou da cama!{C.RESET}")
             time.sleep(0.3)
 
 
@@ -347,7 +347,7 @@ def iniciar(dados_jogador, arquivo_save):
     
     # ========== ABERTURA ==========
     
-    header_kali_v2()
+    header_kali_v2() 
     
     print()
     time.sleep(0.5)
@@ -356,7 +356,11 @@ def iniciar(dados_jogador, arquivo_save):
             delay=0.08, cor=C.CIANO)
     time.sleep(1)
     
-    digitar(f"{C.CIANO}Juliana dorme ao meu lado. Ela não faz ideia do que estou prestes a descobrir.{C.RESET}", 
+    digitar(f"{C.CIANO}Juliana dorme ao meu lado. Ela tem andado muito distante ultimamente.{C.RESET}", 
+            delay=0.08, cor=C.CIANO)
+    time.sleep(1)
+
+    digitar(f"{C.CIANO}Eu não deveria fazer isso, mas a minha desconfiança me leva a isso...{C.RESET}", 
             delay=0.08, cor=C.CIANO)
     time.sleep(1)
     
@@ -485,9 +489,9 @@ def iniciar(dados_jogador, arquivo_save):
             limpar_tela()
             header_kali_v2()
             
-    print(f"\n{C.VERMELHO}{C.NEGRITO}{'═' * 60}{C.RESET}")
-    print(f"{C.VERMELHO}{C.NEGRITO}{'   VOCÊ FOI DESCOBERTO':^60}{C.RESET}")
-    print(f"{C.VERMELHO}{C.NEGRITO}{'═' * 60}{C.RESET}")
+            print(f"\n{C.VERMELHO}{C.NEGRITO}{'═' * 60}{C.RESET}")
+            print(f"{C.VERMELHO}{C.NEGRITO}{'   VOCÊ FOI DESCOBERTO':^60}{C.RESET}")
+            print(f"{C.VERMELHO}{C.NEGRITO}{'═' * 60}{C.RESET}")
             
             time.sleep(0.5)
             
