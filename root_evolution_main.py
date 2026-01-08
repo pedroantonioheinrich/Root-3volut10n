@@ -18,8 +18,14 @@ from pathlib import Path
 try:
     from utils.terminal_kali import C
 except ImportError as e:
-    print(f"Erro ao importar módulos: {e}")
     print("Certifique-se que utils/terminal_kali.py existe.")
+    sys.exit(1)
+
+# Importar Sistema de Bitcoin
+try:
+    from bitcoin_and_market import BitcoinSystem
+except ImportError:
+    print("Erro: bitcoin_and_market.py não encontrado.")
     sys.exit(1)
 
 class IntroMenu:
@@ -54,6 +60,9 @@ class IntroMenu:
         
         # Estado atual do jogo (para menu de jogo)
         self.jogo_atual = None
+        
+        # Inicializar subsistemas
+        self.bitcoin_system = BitcoinSystem(self)
         
     # ========== EFEITOS VISUAIS SIMPLIFICADOS ==========
     
@@ -785,7 +794,12 @@ class IntroMenu:
         return sorted(capitulos, key=lambda x: x['numero'])
     
     def _executar_capitulo(self, numero_capitulo, dados_jogador, arquivo_save):
-        """Executa um capítulo específico"""
+        """Executa um capítulo específico usando o Controlador Central"""
+        # Garantir imports corretos
+        import sys
+        import importlib.util
+        from chapters.chapters_control import ChapterController
+        
         capitulos = self._verificar_capitulos_disponiveis()
         
         if not capitulos:
@@ -802,11 +816,12 @@ class IntroMenu:
         if not capitulo_alvo:
             print(f"{self.VERMELHO}Capítulo {numero_capitulo} não encontrado!{self.RESET}")
             time.sleep(1.5)
-            return False
+            # Retorna dados sem alterar progresso
+            return dados_jogador
         
         try:
             # Salvar estado atual antes de iniciar capítulo
-            dados_jogador['current_chapter'] = numero_capitulo
+            # IMPORTANTE: Não atualizamos 'current_chapter' aqui cegamente, o controlador fará isso
             self._salvar_jogo(dados_jogador, arquivo_save)
             
             # Efeito de transição
@@ -814,31 +829,38 @@ class IntroMenu:
             print(f"\n{' ' * ((self.term_width - 40) // 2)}{self.VERDE}INICIANDO CAPÍTULO {numero_capitulo}...{self.RESET}")
             time.sleep(1)
             
-            # Executar capítulo
-            import importlib.util
+            # Executar capítulo (usando importlib como já estava)
             spec = importlib.util.spec_from_file_location(f"chapter_{numero_capitulo:02d}", capitulo_alvo['arquivo'])
             modulo = importlib.util.module_from_spec(spec)
             
-            # Passar dados do jogador para o módulo
-            modulo.dados_jogador = dados_jogador
-            modulo.arquivo_save = arquivo_save
-            
-            # Executar
+            # Carregar módulo
+            sys.modules[f"chapter_{numero_capitulo:02d}"] = modulo # Registrar em sys.modules
             spec.loader.exec_module(modulo)
             
-            # Se o capítulo retornar com sucesso, atualizar save
-            if hasattr(modulo, 'capitulo_concluido') and modulo.capitulo_concluido:
-                dados_jogador['completed_chapters'].append(numero_capitulo)
-                dados_jogador['current_chapter'] = numero_capitulo + 1
-                self._salvar_jogo(dados_jogador, arquivo_save)
+            # Verificar se tem função iniciar
+            if not hasattr(modulo, 'iniciar'):
+                print(f"{self.VERMELHO}ERRO: Capítulo mal formatado (sem função iniciar){self.RESET}")
+                return False
+                
+            # Executar função iniciar
+            resultado_bruto = modulo.iniciar(dados_jogador, arquivo_save)
             
-            return True
+            # Se retornou None, erro fatal
+            if resultado_bruto is None:
+                return None
+
+            # PROCESSAR RESULTADO VIA CONTROLADOR
+            controller = ChapterController()
+            dados_processados = controller.processar_resultado(dados_jogador, resultado_bruto)
             
+            return dados_processados
+                
         except Exception as e:
-            print(f"{self.VERMELHO}Erro ao executar capítulo: {e}{self.RESET}")
+            print(f"{self.VERMELHO}Erro crítico ao executar capítulo {numero_capitulo}: {e}{self.RESET}")
             import traceback
             traceback.print_exc()
-            time.sleep(2)
+            input("Pressione ENTER para voltar ao menu...")
+            return None
             return False
     
     def _mostrar_erro_sem_capitulos(self):
@@ -990,7 +1012,7 @@ class IntroMenu:
                 if escolha == "1":
                     self._continuar_jogo(dados_jogador, arquivo_save)
                 elif escolha == "2":
-                    self._mostrar_carteira_bitcoin(dados_jogador, arquivo_save)
+                    self.bitcoin_system.mostrar_carteira(dados_jogador, arquivo_save)
                 elif escolha == "3":
                     self._abrir_manual_hacking()
                 elif escolha == "4":
@@ -1015,88 +1037,48 @@ class IntroMenu:
     # ========== FUNÇÕES DO MENU DE JOGO ==========
     
     def _continuar_jogo(self, dados_jogador, arquivo_save):
-        """Continua o jogo do ponto onde parou - executa chapter_01.py"""
-        capitulo_atual = dados_jogador.get('current_chapter', 1)
+        """Continua o jogo do ponto onde parou - loop dinâmico"""
         
-        # Por enquanto, apenas chapter 1 está implementado
-        if capitulo_atual != 1:
-            print(f"\n{' ' * ((self.term_width - 40) // 2)}{self.VERMELHO}Capítulo {capitulo_atual} não disponível!{self.RESET}")
-            time.sleep(1.5)
-            return
-        
-        try:
-            # Importar e executar chapter_01
-            from chapters.chapter_01 import iniciar
+        jogando = True
+        while jogando and self.running:
+            # Limpar flag antes de começar
+            if 'saindo_para_menu' in dados_jogador:
+                del dados_jogador['saindo_para_menu']
+
+            capitulo_atual = dados_jogador.get('current_chapter', 1)
             
-            # Passar dados_jogador e arquivo_save
-            dados_atualizados = iniciar(dados_jogador, arquivo_save)
+            # Executar o capítulo atual
+            sucesso = self._executar_capitulo(capitulo_atual, dados_jogador, arquivo_save)
             
-            # Atualizar dados do jogador com o resultado
-            if dados_atualizados:
-                dados_jogador.update(dados_atualizados)
-                # Salvar automaticamente após capítulo
-                self._salvar_jogo(dados_jogador, arquivo_save)
-            
-        except ImportError as e:
-            self._limpar_tela()
-            print(f"\n{' ' * ((self.term_width - 40) // 2)}{self.VERMELHO}ERRO: Não foi possível carregar o capítulo!{self.RESET}")
-            print(f"{' ' * ((self.term_width - 40) // 2)}{self.CINZA}Detalhes: {e}{self.RESET}")
-            time.sleep(2)
-        except Exception as e:
-            self._limpar_tela()
-            print(f"\n{' ' * ((self.term_width - 40) // 2)}{self.VERMELHO}ERRO durante execução do capítulo:{self.RESET}")
-            print(f"{' ' * ((self.term_width - 40) // 2)}{self.CINZA}{str(e)}{self.RESET}")
-            import traceback
-            traceback.print_exc()
-            time.sleep(2)
+            if sucesso:
+                if dados_jogador.get('saindo_para_menu'):
+                    print(f"\n{self.AMARELO}Retornando ao menu principal...{self.RESET}")
+                    time.sleep(1)
+                    jogando = False
+                    continue
+                # Verificar se o jogador completou o jogo ou se deve continuar
+                # Logicamente, se o capítulo retornou sucesso e atualizou o current_chapter,
+                # o loop vai pegar o novo capítulo na próxima iteração.
+                
+                # Se o capítulo atual não mudou após sucesso, pode ser um "fim de jogo" ou erro lógico
+                # Mas assumindo que chapters incrementam current_chapter ao final:
+                novo_capitulo = dados_jogador.get('current_chapter', capitulo_atual)
+                
+                if novo_capitulo == capitulo_atual:
+                    # Se não avançou de capítulo mesmo com sucesso, talvez seja o fim do conteúdo atual
+                    print(f"\n{' ' * ((self.term_width - 40) // 2)}{self.VERDE}FIM DO CONTEÚDO DISPONÍVEL{self.RESET}")
+                    print(f"{' ' * ((self.term_width - 50) // 2)}{self.CINZA}Aguarde por novas atualizações...{self.RESET}")
+                    time.sleep(3)
+                    jogando = False
+                else:
+                    # Avançou para o próximo, loop continua e carrega o novo
+                    # Pequena pausa dramática entre capítulos
+                    time.sleep(1)
+            else:
+                # Se falhou (Game Over ou saiu para menu)
+                jogando = False
     
-    def _mostrar_carteira_bitcoin(self, dados_jogador, arquivo_save):
-        """Mostra a carteira de Bitcoin do jogador"""
-        self._limpar_tela()
-        
-        print(f"\n{' ' * ((self.term_width - 40) // 2)}{self.AMARELO}╔══════════════════════════════════════╗")
-        print(f"{' ' * ((self.term_width - 40) // 2)}{self.AMARELO}║        CARTEIRA BITCOIN              ║")
-        print(f"{' ' * ((self.term_width - 40) // 2)}{self.AMARELO}╚══════════════════════════════════════╝{self.RESET}\n")
-        
-        btc = dados_jogador.get('bitcoin_wallet', 0.005)
-        valor_usd = btc * 45000  # Simulação de valor em USD
-        
-        print(f"{' ' * ((self.term_width - 40) // 2)}{self.CIANO}Saldo: {self.VERDE}{btc:.6f} BTC")
-        print(f"{' ' * ((self.term_width - 40) // 2)}{self.CIANO}Aproximadamente: {self.VERDE}US$ {valor_usd:.2f}{self.RESET}")
-        
-        print(f"\n{' ' * ((self.term_width - 40) // 2)}{self.CINZA}{'─' * 36}{self.RESET}")
-        
-        # Opções
-        print(f"\n{' ' * ((self.term_width - 35) // 2)}{self.BRANCO}[1] {self.CINZA}Transferir Bitcoin")
-        print(f"{' ' * ((self.term_width - 35) // 2)}{self.BRANCO}[2] {self.CINZA}Receber Bitcoin")
-        print(f"{' ' * ((self.term_width - 35) // 2)}{self.BRANCO}[3] {self.CINZA}Ver Histórico")
-        print(f"{' ' * ((self.term_width - 35) // 2)}{self.BRANCO}[0] {self.CINZA}Voltar{self.RESET}")
-        
-        escolha = input(f"\n{' ' * ((self.term_width - 20) // 2)}{self.BRANCO}> {self.RESET}").strip()
-        
-        if escolha == "1":
-            self._transferir_bitcoin(dados_jogador, arquivo_save)
-        elif escolha == "2":
-            self._receber_bitcoin(dados_jogador, arquivo_save)
-        elif escolha == "3":
-            self._ver_historico_bitcoin(dados_jogador)
-    
-    def _transferir_bitcoin(self, dados_jogador, arquivo_save):
-        """Simula transferência de Bitcoin"""
-        print(f"\n{' ' * ((self.term_width - 40) // 2)}{self.VERDE}Funcionalidade em desenvolvimento...{self.RESET}")
-        time.sleep(1.5)
-    
-    def _receber_bitcoin(self, dados_jogador, arquivo_save):
-        """Simula recebimento de Bitcoin"""
-        print(f"\n{' ' * ((self.term_width - 40) // 2)}{self.VERDE}Endereço da sua carteira:{self.RESET}")
-        print(f"{' ' * ((self.term_width - 40) // 2)}{self.CIANO}bc1q{''.join(random.choices('0123456789abcdef', k=35))}{self.RESET}")
-        input(f"\n{' ' * ((self.term_width - 25) // 2)}{self.CINZA}[ENTER PARA VOLTAR]{self.RESET}")
-    
-    def _ver_historico_bitcoin(self, dados_jogador):
-        """Mostra histórico de transações"""
-        print(f"\n{' ' * ((self.term_width - 40) // 2)}{self.VERDE}Histórico de transações:{self.RESET}")
-        print(f"{' ' * ((self.term_width - 50) // 2)}{self.CINZA}Nenhuma transação encontrada.{self.RESET}")
-        input(f"\n{' ' * ((self.term_width - 25) // 2)}{self.CINZA}[ENTER PARA VOLTAR]{self.RESET}")
+    # Funções de Bitcoin movidas para bitcoin_and_market.py
     
     def _abrir_manual_hacking(self):
         """Abre o manual de hacking completo do arquivo manual_hacking.py"""

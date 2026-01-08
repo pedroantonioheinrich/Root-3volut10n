@@ -82,18 +82,11 @@ class GameState:
         return {
             'player_name': self.player_name,
             'codiname': self.codinome,
-            'current_chapter': 2,
-            'completed_chapters': [1],
-            'score': self.score,
-            'bitcoin_wallet': self.bitcoin_wallet,
-            'privacy_level': self.privacy_level,
-            'reputation': self.reputation,
-            'darknet_access': False,
-            'inventory': [],
-            'last_seen': datetime.now().isoformat(),
             'capitulo_1_resultado': self.decisao_final,
             'capitulo_1_operacao_sucesso': self.operacao_sucesso,
-            'chapter_01_checkpoint': self.checkpoint
+            'chapter_01_checkpoint': self.checkpoint,
+            'completed': self.capitulo_concluido,
+            'saindo_para_menu': self.saindo_para_menu
         }
 
 

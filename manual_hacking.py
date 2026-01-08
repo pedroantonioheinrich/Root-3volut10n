@@ -9,6 +9,294 @@ import sys
 import textwrap
 from shutil import get_terminal_size
 
+# Tentar importar utils para cores padronizadas
+try:
+    from utils.terminal_kali import C, digitar, limpar_tela, header_kali_v2
+    # Wrapper para compatibilidade se necessário
+    def _digitar_wrapper(texto, delay=0.01, cor=C.BRANCO, fim='\n'):
+        digitar(texto, delay=delay, cor=cor)
+        print(end=fim)
+except ImportError:
+    # Fallback caso não encontre utils (uso standalone)
+    class C:
+        VERDE = '\033[92m'
+        CIANO = '\033[96m'
+        VERMELHO = '\033[91m'
+        AMARELO = '\033[93m'
+        BRANCO = '\033[97m'
+        CINZA = '\033[90m'
+        ROXO = '\033[95m'
+        AZUL = '\033[94m'
+        RESET = '\033[0m'
+        NEGRITO = '\033[1m'
+    
+    def limpar_tela():
+        os.system('cls' if os.name == 'nt' else 'clear')
+        
+    def digitar(texto, delay=0.01, cor=C.BRANCO):
+        print(f"{cor}{texto}{C.RESET}")
+
+def obter_largura_terminal():
+    try:
+        return get_terminal_size().columns
+    except:
+        return 80
+
+def imprimir_separador(tipo="duplo"):
+    largura = obter_largura_terminal()
+    if tipo == "duplo":
+        print(f"{C.VERDE}{'═' * largura}{C.RESET}")
+    elif tipo == "simples":
+        print(f"{C.CINZA}{'─' * largura}{C.RESET}")
+
+def imprimir_titulo_secao(titulo, icone="►"):
+    limpar_tela()
+    imprimir_separador("duplo")
+    largura = obter_largura_terminal()
+    texto = f"{icone} {titulo} {icone}"
+    print(f"{C.AMARELO}{texto.center(largura)}{C.RESET}")
+    imprimir_separador("duplo")
+    print()
+
+def imprimir_comando_bonito(comando, descricao, exemplo=None):
+    largura = obter_largura_terminal() - 4
+    
+    print(f"{C.VERDE}┌──[{C.BRANCO}{comando}{C.VERDE}]")
+    
+    # Descrição com quebra de linha
+    desc_lines = textwrap.wrap(descricao, width=largura)
+    for line in desc_lines:
+        print(f"{C.VERDE}│  {C.CINZA}{line}")
+    
+    if exemplo:
+        print(f"{C.VERDE}│  {C.AMARELO}Ex: {C.CIANO}{exemplo}")
+    
+    print(f"{C.VERDE}└──────────────────────────────────────{C.RESET}")
+
+# ================= SEÇÕES DO MANUAL =================
+
+def mostrar_comandos_basicos():
+    imprimir_titulo_secao("COMANDOS BÁSICOS DO TERMINAL", "💻")
+    
+    cmds = [
+        ("ls", "Lista arquivos no diretório", "ls -la"),
+        ("cd", "Navega entre pastas", "cd /var/www"),
+        ("cat", "Lê conteúdo de arquivos", "cat senha.txt"),
+        ("grep", "Busca texto dentro de arquivos/saída", "cat log.txt | grep 'erro'"),
+        ("chmod", "Altera permissões de arquivos", "chmod +x exploit.py"),
+        ("sudo", "Executa como Super Usuário (Root)", "sudo su"),
+        ("pwd", "Mostra diretório atual", "pwd"),
+        ("man", "Manual do sistema Linux", "man nmap")
+    ]
+    
+    for c, d, e in cmds:
+        imprimir_comando_bonito(c, d, e)
+    
+    input(f"\n{C.CINZA}[ENTER para voltar]{C.RESET}")
+
+def mostrar_reconhecimento():
+    imprimir_titulo_secao("RECONHECIMENTO & SCANNING", "👁️")
+    print(f"{C.CINZA}Antes de atacar, você precisa conhecer o alvo.{C.RESET}\n")
+    
+    cmds = [
+        ("nmap", "Scanner de rede e portas. Essencial.", "nmap -sS -p- 192.168.1.1"),
+        ("whois", "Informações de registro de domínio", "whois alvo.com"),
+        ("dig", "Consultas DNS detalhadas", "dig alvo.com ANY"),
+        ("theHarvester", "Coleta emails e subdomínios (OSINT)", "theHarvester -d alvo.com -b google")
+    ]
+    
+    for c, d, e in cmds:
+        imprimir_comando_bonito(c, d, e)
+        
+    input(f"\n{C.CINZA}[ENTER para voltar]{C.RESET}")
+
+def mostrar_ataques_web():
+    imprimir_titulo_secao("ATAQUES WEB & SQL INJECTION", "🌐")
+    
+    print(f"{C.ROXO}Técnicas para explorar falhas em websites.{C.RESET}\n")
+    
+    cmds = [
+        ("SQL Injection", "Inserir comandos SQL em inputs", "' OR '1'='1"),
+        ("XSS (Cross-Site Scripting)", "Injetar scripts maliciosos", "<script>alert(1)</script>"),
+        ("LFI (Local File Inclusion)", "Ler arquivos do servidor", "../../../etc/passwd"),
+        ("sqlmap", "Ferramenta automática de SQLi", "sqlmap -u http://site.com/id=1 --dbs")
+    ]
+    
+    for c, d, e in cmds:
+        imprimir_comando_bonito(c, d, e)
+
+    print(f"\n{C.AMARELO}[!] DICA: Sempre verifique o código-fonte (View Source){C.RESET}")
+    input(f"\n{C.CINZA}[ENTER para voltar]{C.RESET}")
+
+def mostrar_criptografia():
+    imprimir_titulo_secao("CRIPTOGRAFIA & DECODIFICAÇÃO", "🔓")
+    
+    print(f"{C.CIANO}Desvende mensagens ocultas e arquivos protegidos.{C.RESET}\n")
+    
+    cmds = [
+        ("base64 detect", "Identificar base64", "Termina com '=' (ex: bXlfcGFzcw==)"),
+        ("base64 decode", "Decodificar mensagem", "echo 'bXlfcGFzcw==' | base64 -d"),
+        ("base64 encode", "Codificar mensagem", "echo 'senha' | base64"),
+        ("dec gpg", "Descriptografar arquivo GPG", "dec gpg <chave_numérica>"),
+        ("rot13", "Cifra de César simples", "tr 'A-Za-z' 'N-ZA-Mn-za-m'"),
+        ("steghide", "Esteganografia (arquivos ocultos)", "steghide extract -sf img.jpg")
+    ]
+    
+    for c, d, e in cmds:
+        imprimir_comando_bonito(c, d, e)
+
+    print(f"\n{C.AMARELO}[!] DICA: Base64 é muito comum em CTFs. Se vir texto aleatório, tente decode!{C.RESET}")
+    input(f"\n{C.CINZA}[ENTER para voltar]{C.RESET}")
+
+def mostrar_cracking():
+    imprimir_titulo_secao("QUEBRA DE SENHAS (CRACKING)", "🔐")
+    
+    cmds = [
+        ("john", "John The Ripper - Quebra hashes", "john --wordlist=rockyou.txt hash.txt"),
+        ("hydra", "Brute-force em serviços (SSH, FTP)", "hydra -l user -P pass.txt ssh://alvo"),
+        ("hashcat", "Cracker avançado (usa GPU)", "hashcat -m 0 hash.txt lista.txt")
+    ]
+    
+    for c, d, e in cmds:
+        imprimir_comando_bonito(c, d, e)
+        
+    input(f"\n{C.CINZA}[ENTER para voltar]{C.RESET}")
+
+def mostrar_anonimato():
+    imprimir_titulo_secao("ANONIMATO & RASTROS", "👻")
+    
+    print(f"{C.VERMELHO}Um hacker pego é um hacker ruim.{C.RESET}\n")
+    
+    cmds = [
+        ("tor", "Rede de anonimato", "service tor start"),
+        ("macchanger", "Troca seu endereço MAC físico", "macchanger -r eth0"),
+        ("shred", "Deleta arquivos permanentemente", "shred -u log.txt"),
+        ("history -c", "Limpa histórico do terminal", "history -c")
+    ]
+    
+    for c, d, e in cmds:
+        imprimir_comando_bonito(c, d, e)
+        
+    input(f"\n{C.CINZA}[ENTER para voltar]{C.RESET}")
+
+# ================= MENU PRINCIPAL =================
+
+class ManualHacking:
+    def mostrar_menu(self):
+        while True:
+            limpar_tela()
+            imprimir_separador("duplo")
+            print(f"{C.AMARELO}             📖 MANUAL DE HACKING v2.0{C.RESET}")
+            print(f"{C.CINZA}      A Conhecimento é a arma mais poderosa.{C.RESET}")
+            imprimir_separador("duplo")
+            print()
+            
+            opcoes = [
+                "Comandos Básicos Linux",
+                "Reconhecimento & Scanning",
+                "Ataques Web (SQLi, XSS)",
+                "Criptografia & Decodificação",
+                "Cracking de Senhas",
+                "Anonimato & Limpeza",
+                "Ferramentas (Hex/Bin)",
+                "Sair"
+            ]
+            
+            for i, op in enumerate(opcoes, 1):
+                # Formatação bonita do menu
+                prefixo = "└──" if i == len(opcoes) else "├──"
+                cor = C.VERMELHO if i == len(opcoes) else C.BRANCO
+                print(f"{C.VERDE} {prefixo} {C.AMARELO}[{i}] {cor}{op}{C.RESET}")
+                
+            print()
+            imprimir_separador("simples")
+            
+            try:
+                escolha = input(f"{C.VERDE} man > {C.RESET}").strip()
+            except:
+                break
+                
+            if escolha == "1":
+                mostrar_comandos_basicos()
+            elif escolha == "2":
+                mostrar_reconhecimento()
+            elif escolha == "3":
+                mostrar_ataques_web()
+            elif escolha == "4":
+                mostrar_criptografia()
+            elif escolha == "5":
+                mostrar_cracking()
+            elif escolha == "6":
+                mostrar_anonimato()
+            elif escolha == "7":
+                self.mostrar_ferramentas_conversao()
+            elif escolha == "8" or escolha == "0":
+                break
+
+    def mostrar_ferramentas_conversao(self):
+        """Menu de ferramentas de conversão dentro do manual"""
+        while True:
+            limpar_tela()
+            imprimir_separador("duplo")
+            print(f"{C.AMARELO}             🛠️  FERRAMENTAS HACKER (BIN/HEX){C.RESET}")
+            imprimir_separador("duplo")
+            
+            opcoes = [
+                "Texto -> Hexadecimal",
+                "Hexadecimal -> Texto",
+                "Texto -> Binário",
+                "Binário -> Texto",
+                "Decimal -> Hex/Bin",
+                "Voltar"
+            ]
+            
+            for i, op in enumerate(opcoes, 1):
+                prefixo = "└──" if i == len(opcoes) else "├──"
+                print(f"{C.VERDE} {prefixo} {C.AMARELO}[{i}] {C.BRANCO}{op}{C.RESET}")
+                
+            print()
+            imprimir_separador("simples")
+            
+            try:
+                escolha = input(f"{C.VERDE} tools > {C.RESET}").strip()
+                
+                if escolha == "6" or escolha == "0": break
+                
+                if escolha == "1":
+                    txt = input(f"\n{C.CINZA}Digite o texto: {C.RESET}")
+                    res = " ".join("{:02x}".format(ord(c)) for c in txt)
+                    print(f"{C.VERDE}HEX: {C.BRANCO}{res}{C.RESET}")
+                elif escolha == "2":
+                    try:
+                        hexa = input(f"\n{C.CINZA}Digite o Hex (ex: 41 42): {C.RESET}").replace(" ", "")
+                        res = bytes.fromhex(hexa).decode('utf-8')
+                        print(f"{C.VERDE}TEXTO: {C.BRANCO}{res}{C.RESET}")
+                    except: print(f"{C.VERMELHO}Hex inválido.{C.RESET}")
+                elif escolha == "3":
+                    txt = input(f"\n{C.CINZA}Digite o texto: {C.RESET}")
+                    res = " ".join(format(ord(c), '08b') for c in txt)
+                    print(f"{C.VERDE}BIN: {C.BRANCO}{res}{C.RESET}")
+                elif escolha == "4":
+                    try:
+                        binario = input(f"\n{C.CINZA}Digite o Binário: {C.RESET}").replace(" ", "")
+                        chars = [binario[i:i+8] for i in range(0, len(binario), 8)]
+                        res = "".join(chr(int(c, 2)) for c in chars)
+                        print(f"{C.VERDE}TEXTO: {C.BRANCO}{res}{C.RESET}")
+                    except: print(f"{C.VERMELHO}Binário inválido.{C.RESET}")
+                elif escolha == "5":
+                    try:
+                        dec = int(input(f"\n{C.CINZA}Digite o Decimal: {C.RESET}"))
+                        print(f"{C.VERDE}HEX: {hex(dec)[2:].upper()} | BIN: {bin(dec)[2:]}{C.RESET}")
+                    except: print(f"{C.VERMELHO}Número inválido.{C.RESET}")
+                
+                input(f"\n{C.CINZA}[ENTER]{C.RESET}")
+            except:
+                break
+
+if __name__ == "__main__":
+    man = ManualHacking()
+    man.mostrar_menu()
+
 class Cores:
     VERDE = '\033[92m'
     CIANO = '\033[96m'
