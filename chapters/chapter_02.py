@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """
 CHAPTER_02.PY - "O Vazio entre os Bits"
-Três semanas após os eventos do Capítulo 1.
-O apartamento está um caos. Garrafas vazias, tela do laptop a única luz.
+Três semanas depois. O apartamento está um caos. Garrafas vazias, tela do laptop a única luz.
+A depressão consome, mas o código... o código faz sentido.
 
-Foco: Autoaprendizado, Criptografia, Esteganografia
-Habilidade: zip2john, steghide
+Foco: Autoaprendizado, primeiros fóruns underground
+Habilidades: Criptografia básica, anonimato digital, navegação na dark web
+Objetivos: 6 missões principais + exploração livre
 """
 
 import os
@@ -17,11 +18,10 @@ import shutil
 from datetime import datetime
 from pathlib import Path
 
-# Tentativa de importar utils
+# Importar dependências
 try:
-    from utils.terminal_kali import C, digitar, fim_digitar, limpa_tela
+    from utils.terminal_kali import C, digitar as _digitar_padrao
 except ImportError:
-    # Fallback
     class C:
         VERDE = '\033[92m'
         VERMELHO = '\033[91m'
@@ -32,381 +32,451 @@ except ImportError:
         ROXO = '\033[95m'
         NEGRITO = '\033[1m'
         RESET = '\033[0m'
-        KALI_AZUL = '\033[34m'
-        
-    def digitar(texto, delay=0.03, cor=C.BRANCO, fim="\n"):
-        print(f"{cor}{texto}{C.RESET}", end=fim)
-        time.sleep(len(texto) * delay)
 
-    def limpa_tela():
-        os.system('cls' if os.name == 'nt' else 'clear')
+    def _digitar_padrao(texto, delay=0.01, cor=C.BRANCO, fim="\n"):
+        """Fallback para função de digitação"""
+        for char in texto:
+            print(f"{cor}{char}{C.RESET}", end='', flush=True)
+            time.sleep(delay)
+        print(fim, end='')
 
 
-# ========== ESTADO DO JOGO ==========
+# ========== GERENCIADOR DE ESTADO DO JOGO ==========
 
-class GameStateChapter2:
-    def __init__(self, dados_anteriores):
-        self.player_name = dados_anteriores.get('player_name', 'Neo')
-        self.codinome = dados_anteriores.get('codiname', 'SHADOW_00')
-        self.privacy_level = dados_anteriores.get('privacy_level', 80)
-        self.reputation = dados_anteriores.get('reputation', 0)
-        self.score = dados_anteriores.get('score', 0)
-        self.inventory = dados_anteriores.get('inventory', [])
-        
-        # Histórico do Cap 1
-        self.cap1_resultado = dados_anteriores.get('capitulo_1_resultado', 'exfiltrar') # exfiltrar ou destruir
-        
-        # Estado local
-        self.erros = 0
-        self.game_over = False
-        self.saindo_para_menu = False # Flag para voltar ao menu
+class GameState:
+    """Gerencia o estado durante o capítulo"""
 
-    def registrar_falha(self, penalidade=10):
-        self.erros += 1
-        self.privacy_level = max(0, self.privacy_level - penalidade)
+    def __init__(self, dados_jogador):
+        # Dados originais do jogador
+        self.player_name = dados_jogador.get('player_name', 'Hacker')
+        self.codiname = dados_jogador.get('codiname', 'ANON')
+        self.current_chapter = dados_jogador.get('current_chapter', 2)
+        self.completed_chapters = dados_jogador.get('completed_chapters', [])
+        self.score = dados_jogador.get('score', 0)
+        self.privacy_level = dados_jogador.get('privacy_level', 75)
+        self.bitcoin_wallet = dados_jogador.get('bitcoin_wallet', 0.005)
 
-    def registrar_sucesso(self, pontos):
-        self.score += pontos
-        self.reputation += 2
+        # Estado do capítulo
+        self.capitulo_concluido = dados_jogador.get('completed', False)
+        self.operacao_sucesso = dados_jogador.get('capitulo_2_operacao_sucesso', False)
+        self.checkpoint = dados_jogador.get('chapter_02_checkpoint', 'inicio')
+        self.saindo_para_menu = dados_jogador.get('saindo_para_menu', False)
 
-    def to_dict(self):
-        # Retorna dados atualizados para o main loop
-            'capitulo_1_resultado': self.capit1_resultado,
-            'last_seen': datetime.now().isoformat(),
-            'saindo_para_menu': self.saindo_para_menu,
-            'completed': getattr(self, 'capitulo_concluido', True) # Assumindo true se chegou aqui sem sair
+        # Missões do capítulo 2
+        self.missoes = {
+            'instalar_tor': False,              # Instalar e configurar Tor
+            'acessar_darkweb': False,           # Acessar onion site
+            'criptografar_mensagem': False,     # Usar GPG para criptografar
+            'explorar_forum': False,            # Navegar no fórum underground
+            'baixar_ferramenta': False,         # Baixar primeira ferramenta
+            'primeiro_post': False             # Fazer primeiro post anônimo
         }
 
-# ========== FERRAMENTAS SIMULADAS ==========
+        # Estado emocional
+        self.nivel_depressao = 85  # Começa alto
+        self.motivacao_hacker = 15  # Começa baixo
 
-def prompt_kali(codinome):
-    return f"{C.KALI_AZUL}┌──({C.VERDE}{codinome}{C.KALI_AZUL}㉿kali)-[{C.BRANCO}~/learning/crypto{C.KALI_AZUL}]\n└─{C.ROXO}#{C.RESET} "
+        # Dark web
+        self.onion_sites_descobertos = dados_jogador.get('onion_sites_descobertos', [])
+        self.ferramentas_baixadas = dados_jogador.get('ferramentas_baixadas', [])
+        self.missoes = dados_jogador.get('missoes_capitulo_2', self.missoes)
+        self.nivel_depressao = dados_jogador.get('nivel_depressao', self.nivel_depressao)
+        self.motivacao_hacker = dados_jogador.get('motivacao_hacker', self.motivacao_hacker)
 
-def header_kali_v2(titulo="CAPÍTULO 2: O VAZIO ENTRE OS BITS"):
-    """Cabeçalho padronizado"""
-    limpa_tela()
-    largura = 100
+    def registrar_sucesso(self, pontos=10):
+        """Registra sucesso e adiciona pontos"""
+        self.score += pontos
+        self.privacy_level = max(0, self.privacy_level - 1)
+        self.motivacao_hacker += 5
+        self.nivel_depressao = max(0, self.nivel_depressao - 3)
+
+    def registrar_falha(self, pontos_perdidos=5):
+        """Registra falha e penaliza"""
+        self.score = max(0, self.score - pontos_perdidos)
+        self.privacy_level = max(0, self.privacy_level - 8)
+        self.nivel_depressao += 5
+
+    def completar_missao(self, missao_nome):
+        """Marca missão como completa"""
+        if missao_nome in self.missoes:
+            self.missoes[missao_nome] = True
+            self.registrar_sucesso(20)
+            print(f"\n{C.VERDE}✓ MISSÃO CONCLUÍDA: {missao_nome.replace('_', ' ').upper()}{C.RESET}")
+
+    def verificar_progresso(self):
+        """Verifica progresso das missões"""
+        completas = sum(self.missoes.values())
+        total = len(self.missoes)
+        return completas, total
+
+    def to_dict(self):
+        """Converte estado para dicionário"""
+        dados = {
+            'player_name': self.player_name,
+            'codiname': self.codiname,
+            'current_chapter': self.current_chapter,
+            'completed_chapters': self.completed_chapters,
+            'score': self.score,
+            'privacy_level': self.privacy_level,
+            'bitcoin_wallet': self.bitcoin_wallet,
+            'chapter_02_checkpoint': self.checkpoint,
+            'capitulo_2_resultado': None,
+            'capitulo_2_operacao_sucesso': self.operacao_sucesso,
+            'completed': self.capitulo_concluido,
+            'saindo_para_menu': False,
+            'missoes_capitulo_2': self.missoes.copy(),
+            'nivel_depressao': self.nivel_depressao,
+            'motivacao_hacker': self.motivacao_hacker,
+            'onion_sites_descobertos': self.onion_sites_descobertos,
+            'ferramentas_baixadas': self.ferramentas_baixadas
+        }
+        return dados
+
+
+# ========== FUNÇÕES AUXILIARES ==========
+
+def limpar_tela():
+    """Limpa a tela do terminal"""
+    os.system('clear' if os.name != 'nt' else 'cls')
+
+def digitar(texto, delay=0.03, cor=C.BRANCO):
+    """Função de digitação com efeito"""
+    _digitar_padrao(texto, delay, cor)
+
+def erro(mensagem):
+    """Exibe mensagem de erro"""
+    print(f"\n{C.VERMELHO}[ERRO] {mensagem}{C.RESET}")
+
+def sucesso(mensagem):
+    """Exibe mensagem de sucesso"""
+    print(f"\n{C.VERDE}[SUCESSO] {mensagem}{C.RESET}")
+
+def aviso(mensagem):
+    """Exibe mensagem de aviso"""
+    print(f"\n{C.AMARELO}[AVISO] {mensagem}{C.RESET}")
+
+def prompt_kali(username="hacker"):
+    """Retorna prompt estilo Kali Linux"""
+    return f"{C.VERDE}{username}{C.CINZA}@{C.AMARELO}kali{C.RESET}{C.CINZA}:{C.AMARELO}~{C.RESET}{C.CINZA}$ {C.RESET}"
+
+def exibir_header():
+    """Exibe cabeçalho do capítulo"""
+    limpar_tela()
+    print(f"\n{C.ROXO}{'═' * 80}{C.RESET}")
+    print(f"{C.ROXO}║{'ROOT EVOLUTION - CAPÍTULO 2: O VAZIO ENTRE OS BITS':^78}║{C.RESET}")
+    print(f"{C.CINZA}║{'Brasília, 3 semanas depois | Terminal: Kali Linux 2024':^78}║{C.RESET}")
+    print(f"{C.ROXO}{'═' * 80}{C.RESET}")
+    print(f"\n{C.CINZA}💡 DICA: Digite 'menu' para retornar ao menu do jogo a qualquer momento.{C.RESET}")
+    print(f"{C.CINZA}📖 Acesse 'manual' para consultar o Manual de Hacking durante o jogo.{C.RESET}")
+    print(f"{C.ROXO}{'═' * 80}{C.RESET}")
+
+def exibir_status(state):
+    """Exibe status atual do jogador"""
+    completas, total = state.verificar_progresso()
+    progresso = completas / total * 100
+
+    print(f"\n{C.ROXO}┌─ STATUS DO HACKER ──────────────────────────────┐{C.RESET}")
+    print(f"{C.ROXO}│{C.RESET} Score: {C.VERDE}{state.score:3d}{C.RESET} │ Privacidade: {C.CIANO}{state.privacy_level:2d}%{C.RESET} │ Missões: {C.VERDE}{completas}/{total}{C.RESET} ({C.VERDE}{progresso:3.0f}%{C.RESET}) {C.ROXO}│{C.RESET}")
+    print(f"{C.ROXO}│{C.RESET} Depressão: {C.VERMELHO}{state.nivel_depressao:2d}%{C.RESET} │ Motivação: {C.AMARELO}{state.motivacao_hacker:2d}%{C.RESET} │ Sites Onion: {C.ROXO}{len(state.onion_sites_descobertos)}{C.RESET} {C.ROXO}│{C.RESET}")
+    print(f"{C.ROXO}└─────────────────────────────────────────────────┘{C.RESET}")
+
+def salvar_checkpoint(state, arquivo_save, checkpoint_nome):
+    """Salva checkpoint do jogo"""
+    state.checkpoint = checkpoint_nome
+    dados = state.to_dict()
+
     try:
-        largura = shutil.get_terminal_size().columns
-    except:
-        pass
-    
-    print(f"{C.VERDE}{'═' * largura}{C.RESET}")
-    print(f"{C.CIANO}{C.NEGRITO}{f'[{titulo}]':^{largura}}{C.RESET}")
-    print(f"{C.CINZA}{'Brasília - Asa Norte | Apartamento Provisório':^{largura}}{C.RESET}")
-    print(f"{C.VERDE}{'═' * largura}{C.RESET}")
-    print()
-    print(f"{C.AMARELO}💡 DICA: Digite {C.RESET}{C.VERMELHO}'menu'{C.RESET}{C.AMARELO} para retornar ao menu do jogo a qualquer momento.{C.RESET}")
-    print(f"{C.AMARELO}📖 Acesse{C.RESET}{C.VERMELHO}'manual'{C.RESET}{C.AMARELO}para consultar o Manual de Hacking durante o jogo.{C.RESET}")
-    print(f"{C.VERDE}{'═' * largura}{C.RESET}\n")
+        with open(arquivo_save, 'w', encoding='utf-8') as f:
+            json.dump(dados, f, indent=2, ensure_ascii=False)
+        print(f"\n{C.CINZA}[✓] Checkpoint salvo: {checkpoint_nome}{C.RESET}")
+    except Exception as e:
+        erro(f"Erro ao salvar checkpoint: {e}")
 
-def check_comandos_globais(cmd, state, arquivo_save):
-    """Verifica comandos globais como 'menu' e 'manual'"""
-    if cmd.lower() == 'menu':
-        print(f"\n{C.AMARELO}[*] Salvando checkpoint e retornando ao menu...{C.RESET}")
-        state.saindo_para_menu = True
-        return "MENU"
-        
-    if cmd.lower() in ['manual', 'help', '?']:
-        try:
-            from manual_hacking import exibir_banner
-            # Importar dinamicamente para evitar problemas circulares ou de path
-            exibir_banner()
-        except ImportError:
-             print(f"{C.CINZA}Manual não disponível neste contexto.{C.RESET}")
-        return "MANUAL"
-    
-    return None
-
-def pensamento(texto):
-    """Exibe um pensamento do personagem (texto azul/ciano com itálico se possível)"""
-    print(f"\n{C.CIANO}{C.NEGRITO}>> {texto}{C.RESET}")
-    time.sleep(1.5)
-
-def narracao(texto, delay=0.04):
-    """Exibe texto narrativo"""
-    digitar(texto, delay=delay, cor=C.BRANCO)
-    time.sleep(0.5)
-
-def drama_pause(segundos=1):
-    time.sleep(segundos)
-
-# ========== SIMULAÇÕES TÉCNICAS ==========
-
-def simular_john(target):
-    print(f"\n{C.CINZA}[*] Iniciando John The Ripper jumbo-1...{C.RESET}")
-    time.sleep(1)
-    print(f"{C.CINZA}[*] Loaded 1 password hash ({target}){C.RESET}")
-    print(f"{C.CINZA}[*] Will run 8 OpenMP threads{C.RESET}")
-    time.sleep(2)
-    
-    print(f"\n{C.AMARELO}Proceeding with wordlist: /usr/share/wordlists/rockyou.txt{C.RESET}")
-    chars = ["|", "/", "-", "\\"]
-    for i in range(20):
-        sys.stdout.write(f"\r{C.BRANCO}Cracking... {chars[i % 4]} {i*5}%{C.RESET}")
-        sys.stdout.flush()
-        time.sleep(0.2)
-    
-    senha = "nobile123"
-    print(f"\n\n{C.VERDE}[+] Session completed. Password found: {C.NEGRITO}{senha}{C.RESET}")
-    return senha
-
-def simular_steghide_extract(arquivo, senha):
-    print(f"\n{C.CINZA}[*] Tentando extrair dados de {arquivo}...{C.RESET}")
-    time.sleep(1)
-    
-    if senha == "rex":
-        print(f"{C.VERDE}[+] Wrote extracted data to 'backup_link.txt'.{C.RESET}")
+def carregar_manual():
+    """Carrega o manual de hacking"""
+    try:
+        from manual_hacking import ManualHacking
+        manual = ManualHacking()
+        manual.mostrar_menu()
         return True
-    else:
-        print(f"{C.VERMELHO}steghide: could not extract any data with that passphrase!{C.RESET}")
+    except ImportError:
+        erro("Manual de hacking não encontrado")
         return False
 
-# ========== CENAS ==========
+# ========== FUNÇÕES DE JOGABILIDADE ==========
 
-def cena_abertura(state):
-    header_kali_v2()
-    print("\n" * 2)
-    drama_pause(1)
-    
-    digitar(f"{C.CINZA}Três semanas.{C.RESET}", delay=0.1)
-    drama_pause(1)
-    digitar(f"{C.CINZA}Vinte e um dias desde que saí daquele apartamento.{C.RESET}", delay=0.06)
-    drama_pause(1)
-    
-    header_kali_v2()
-    drama_pause(2)
-    
-    narracao("O quarto cheira a pizza velha e energéticos quentes.")
-    narracao("A luz do sol tenta entrar pela persiana quebrada, mas a única iluminação real vem dos monitores.")
-    drama_pause(1)
-    
-    pensamento("Eu não durmo direito há dias. Toda vez que fecho os olhos, vejo o rosto dela.")
-    pensamento("Ela mentiu. Olhando nos meus olhos, ela mentiu.")
-    drama_pause(1)
-    
-    narracao("Você olha para as suas mãos. Elas tremem levemente sobre o teclado mecânico.")
-    narracao("Mas quando você digita... o tremor para.")
-    drama_pause(1)
-    
-    pensamento("O código não mente. O código é lógico. Se há um erro, é sintaxe. É corrigível.")
-    pensamento("Vida real não tem compilador. Vida real é... quebrada.") 
-    
-    drama_pause(2)
+def prompt_simples(cmd_esperado, descricao, state):
+    """Prompt simples sem limite de tempo"""
+    print(f"\n{C.CINZA}🎯 OBJETIVO: {descricao}{C.RESET}")
+    print(f"{C.VERDE}💻 COMANDO: {cmd_esperado}{C.RESET}")
 
-def rota_exfiltracao(state, arquivo_save):
-    """Rota para quem salvou os dados (Final exfiltrar)"""
-    narracao("\nNo seu Desktop, o arquivo criptografado brilha como um troféu maldito.")
-    print(f"\n{C.VERMELHO}📄 fotos_reserva_dupla.zip{C.RESET}")
-    drama_pause(1)
-    
-    pensamento("Eu tenho as provas. Eu sei que tenho. Mas a senha...")
-    pensamento("Eu tentei datas, nomes... nada. Preciso pensar como um hacker. Não como o namorado traído.")
-    
-    narracao("Você abre o terminal. O cursor piscando é a única coisa que faz sentido agora.")
-    
-    print(f"\n{C.AMARELO}MISSÃO: Quebrar a criptografia do arquivo ZIP.{C.RESET}")
-    print(f"{C.CINZA}DICA: Use 'zip2john' para extrair o hash da senha, depois use 'john' para quebrá-la.{C.RESET}\n")
-    
-    # Parte 1: zip2john
     while True:
         try:
-            cmd = input(prompt_kali(state.codinome)).strip()
-        except (KeyboardInterrupt, EOFError):
-            state.saindo_para_menu = True
+            cmd = input(prompt_kali(state.codiname)).strip()
+        except KeyboardInterrupt:
+            print(f"\n{C.VERMELHO}Execução interrompida.{C.RESET}")
             return False
 
-        # Check global commands
-        status_global = check_comandos_globais(cmd, state, arquivo_save)
-        if status_global == "MENU": return False
-        if status_global == "MANUAL": continue
-        
-        if cmd == "ls":
-            print("fotos_reserva_dupla.zip   wordlist.txt")
-        elif "zip2john" in cmd and "fotos_reserva_dupla.zip" in cmd:
-            if ">" in cmd:
-                print(f"{C.VERDE}[+] Hash extraído com sucesso!{C.RESET}")
-                break
-            else:
-                print(f"{C.AMARELO}Dica: Redirecione a saída para um arquivo (ex: > hash.txt){C.RESET}")
-        else:
-            print(f"{C.VERMELHO}Comando não reconhecido ou incorreto para esta etapa.{C.RESET}")
-            state.registrar_falha(2)
-
-    pensamento("O hash... a impressão digital da senha. Agora é força bruta.")
-    pensamento("Não importa o quão complexa seja a mentira, a verdade é apenas uma sequência de caracteres.")
-    
-    # Parte 2: John
-    while True:
-        try:
-            cmd = input(prompt_kali(state.codinome)).strip()
-        except (KeyboardInterrupt, EOFError):
+        if cmd.lower() == 'menu':
             state.saindo_para_menu = True
+            print(f"\n{C.AMARELO}Retornando ao menu principal...{C.RESET}")
             return False
-            
-        status_global = check_comandos_globais(cmd, state, arquivo_save)
-        if status_global == "MENU": return False
-        if status_global == "MANUAL": continue
-        
-        if cmd.startswith("john"):
-            simular_john("zip")
-            break
-        else:
-            print(f"{C.VERMELHO}Use o comando 'john' seguido do arquivo de hash.{C.RESET}")
-            state.registrar_falha(2)
 
-    drama_pause(1)
-    narracao("\n'nobile123'.")
-    drama_pause(1)
-    pensamento("O nome do hotel. Sério? Ela nem tentou esconder. A arrogância dela...")
-    
-    narracao("Você descompacta o arquivo. As fotos aparecem na tela.")
-    narracao("São inegáveis. Datas, horários, rostos.")
-    
-    drama_pause(2)
-    pensamento("Eu deveria sentir vitória. Mas só sinto... vazio.")
-    pensamento("Mas espere... o que é isso no metadado da terceira foto?")
-    
-    digitar(f"\n{C.VERDE}>> Nova habilidade desbloqueada: CRIPTOGRAFIA AVANÇADA <<{C.RESET}", delay=0.05)
-    return True
-
-def rota_destruicao(state, arquivo_save):
-    """Rota para quem destruiu os dados (Final destruir)"""
-    narracao("\nVocê olha para a tela vazia. Você apagou tudo naquela noite.")
-    narracao("O medo te dominou. Você destruiu as evidências para salvar a relação.")
-    drama_pause(1)
-    
-    pensamento("E adivinhe? Não adiantou nada. Ela foi embora dois dias depois.")
-    pensamento("Agora eu não tenho a garota, e não tenho as provas.")
-    pensamento("Sou um covarde. Um idiota.")
-    
-    drama_pause(2)
-    narracao("Mas a obsessão não dorme. Você passou os últimos dias vasculhando a vida digital dela (o que restou).")
-    narracao("Você encontrou uma foto antiga no perfil social público dela. Uma foto 'inocente' do cachorro, Rex.")
-    
-    print(f"\n{C.CIANO}🖼️ perfil_social.jpg{C.RESET}")
-    drama_pause(1)
-    
-    pensamento("Há algo estranho nessa imagem. O tamanho do arquivo... é grande demais para um JPEG comprimido.")
-    pensamento("Esteganografia. Esconder dados à vista de todos.")
-    
-    print(f"\n{C.AMARELO}MISSÃO: Extrair dados ocultos da imagem.{C.RESET}")
-    print(f"{C.CINZA}DICA: Use 'steghide info' para verificar e 'steghide extract' para extrair.{C.RESET}\n")
-
-    # Parte 1: Info
-    while True:
-        try:
-            cmd = input(prompt_kali(state.codinome)).strip()
-        except (KeyboardInterrupt, EOFError):
-            state.saindo_para_menu = True
-            return False
-            
-        status_global = check_comandos_globais(cmd, state, arquivo_save)
-        if status_global == "MENU": return False
-        if status_global == "MANUAL": continue
-        
-        if "steghide info" in cmd and "perfil_social.jpg" in cmd:
-            print(f"{C.CINZA}[*] Probing 'perfil_social.jpg'...{C.RESET}")
-            time.sleep(1)
-            print(f"{C.VERDE}[+] Found embedded data: 'backup_link.txt'{C.RESET}")
-            break
-        elif cmd == "ls":
-            print("perfil_social.jpg")
-        else:
-            print(f"{C.VERMELHO}Verifique o arquivo com 'steghide info'.{C.RESET}")
-
-    pensamento("Eu sabia. Ela sempre foi paranoica com backups. Onde há fumaça digital...")
-    pensamento("Preciso de uma senha. Algo que ela nunca esqueceria. O nome daquele maldito cachorro.")
-
-    # Parte 2: Extract
-    while True:
-        try:
-            cmd = input(prompt_kali(state.codinome)).strip()
-        except (KeyboardInterrupt, EOFError):
-            state.saindo_para_menu = True
-            return False
-            
-        status_global = check_comandos_globais(cmd, state, arquivo_save)
-        if status_global == "MENU": return False
-        if status_global == "MANUAL": continue
-        
-        if "steghide extract" in cmd:
-            senha = input(f"{C.AMARELO}Enter passphrase: {C.RESET}")
-            if simular_steghide_extract("perfil_social.jpg", senha):
-                break
-            else:
+        if cmd.lower() == 'manual':
+            if carregar_manual():
+                aviso("Você perdeu tempo consultando o manual!")
                 state.registrar_falha(3)
+            continue
+
+        if cmd == cmd_esperado:
+            sucesso("Comando executado com sucesso!")
+            return True
         else:
-            print(f"{C.VERMELHO}Use 'steghide extract -sf perfil_social.jpg'.{C.RESET}")
-            
-    drama_pause(1)
-    narracao("\nUm arquivo de texto se extrai das entranhas digitais da imagem.")
-    print(f"\n{C.BRANCO}CONTENT: cloud-backup.secure/recover?id=juliana_reserva_nobile{C.RESET}")
-    
-    drama_pause(2)
-    pensamento("Um link de recuperação. Eu não perdi tudo.")
-    pensamento("Ainda posso provar quem ela é.")
-    
-    digitar(f"\n{C.VERDE}>> Nova habilidade desbloqueada: ESTEGANOGRAFIA <<{C.RESET}", delay=0.05)
-    return True
+            erro("Comando incorreto. Tente novamente.")
+            state.registrar_falha(2)
 
-def cena_final(state):
-    drama_pause(2)
-    header_kali_v2()
-    
-    narracao("A adrenalina corre nas suas veias. Pela primeira vez em semanas, você não sente dor.")
-    narracao("Você sente... poder.")
-    
-    pensamento("Eles acham que deletar é o fim. Que criptografar é seguro.")
-    pensamento("Eles não entendem. Nada nunca é realmente deletado.")
-    
-    drama_pause(1)
-    digitar(f"\n{C.CINZA}* Notificação no navegador *{C.RESET}")
-    print(f"{C.ROXO}[Fórum Underground] Nova mensagem privada de: V0id_Walker{C.RESET}")
-    
-    drama_pause(2)
-    pensamento("Quem é V0id_Walker? Como ele me achou nesse fórum?")
-    
-    digitar(f"\n{C.BRANCO}Mensagem: 'Vimos o que você fez com o servidor Nobile. Impressionante para um amador.'{C.RESET}", delay=0.05)
-    drama_pause(1)
-    digitar(f"{C.BRANCO}Mensagem: 'Temos um objetivo em comum. Procure por fsociety.br'{C.RESET}", delay=0.05)
-    
-    drama_pause(2)
-    pensamento("Isso não é mais sobre a Juliana.")
-    pensamento("Isso acabou de se tornar algo muito maior.")
-    
-    digitar(f"\n{C.VERDE}CAPÍTULO 2 CONCLUÍDO.{C.RESET}")
-    state.registrar_sucesso(100)
-    time.sleep(3)
+def mostrar_pensamentos_depressao(state):
+    """Mostra pensamentos depressivos baseados no nível de depressão"""
+    pensamentos = [
+        "Por que continuar? Nada importa mesmo...",
+        "O código é a única coisa que ainda faz sentido...",
+        "Ela me traiu. O mundo é podre. Mas o código... o código é puro.",
+        "Talvez eu devesse simplesmente desaparecer nos bits...",
+        "Cada linha de código me lembra que ainda estou vivo."
+    ]
 
+    idx = min(int(state.nivel_depressao / 20), len(pensamentos) - 1)
+    print(f"\n{C.CINZA}💭 {pensamentos[idx]}{C.RESET}")
+    time.sleep(2)
 
-# ========== MAIN ==========
+def tutorial_darkweb():
+    """Tutorial sobre dark web e anonimato"""
+    print(f"\n{C.ROXO}┌─ GUIA PARA DARK WEB ────────────────────────────┐{C.RESET}")
+    print(f"{C.ROXO}│{C.RESET} Conceitos fundamentais que você aprenderá:     {C.ROXO}│{C.RESET}")
+    print(f"{C.ROXO}│{C.RESET}                                               {C.ROXO}│{C.RESET}")
+    print(f"{C.ROXO}│{C.RESET} • {C.VERDE}Tor Browser{C.RESET} - Navegador anônimo          {C.ROXO}│{C.RESET}")
+    print(f"{C.ROXO}│{C.RESET} • {C.VERDE}.onion{C.RESET} - Domínios da dark web           {C.ROXO}│{C.RESET}")
+    print(f"{C.ROXO}│{C.RESET} • {C.VERDE}GPG{C.RESET} - Criptografia de mensagens         {C.ROXO}│{C.RESET}")
+    print(f"{C.ROXO}│{C.RESET} • {C.VERDE}VPN + Tor{C.RESET} - Camadas de anonimato       {C.ROXO}│{C.RESET}")
+    print(f"{C.ROXO}│{C.RESET} • {C.VERDE}Bitcoin{C.RESET} - Moeda para transações         {C.ROXO}│{C.RESET}")
+    print(f"{C.ROXO}└─────────────────────────────────────────────────┘{C.RESET}")
+    input(f"\n{C.CINZA}[ENTER para continuar]{C.RESET}")
+
+# ========== CAPÍTULO 2: SEQUÊNCIA PRINCIPAL ==========
 
 def iniciar(dados_jogador, arquivo_save=None):
-    # Inicializa estado
-    state = GameStateChapter2(dados_jogador)
-    
+    """
+    Função principal do Capítulo 2
+    """
+    state = GameState(dados_jogador)
+
     try:
-        cena_abertura(state)
-        
-        resultado = False
-        if state.cap1_resultado == "exfiltrar":
-            resultado = rota_exfiltracao(state, arquivo_save)
+        # Introdução dramática
+        exibir_header()
+
+        digitar("Três semanas se passaram desde aquela noite fatídica.", delay=0.05, cor=C.CIANO)
+        time.sleep(1)
+        digitar("O apartamento está um caos. Garrafas vazias espalhadas.", delay=0.05, cor=C.CIANO)
+        digitar("A tela do laptop é a única luz neste vazio.", delay=0.05, cor=C.CIANO)
+        digitar("A depressão me consome, mas... o código. O código faz sentido.", delay=0.05, cor=C.CIANO)
+
+        mostrar_pensamentos_depressao(state)
+        print(f"\n{C.CINZA}{'─' * 73}{C.RESET}")
+        time.sleep(1)
+
+        # Tutorial dark web
+        tutorial_darkweb()
+
+        if not state.missoes.get('instalar_tor', False):
+            # MISSÃO 1: Instalar Tor
+            print(f"\n{C.ROXO}{'═' * 60}{C.RESET}")
+            print(f"{C.ROXO}🎯 MISSÃO 1/6: INSTALAÇÃO DO TOR{C.RESET}")
+            print(f"{C.ROXO}{'═' * 60}{C.RESET}")
+
+            digitar("\n[*] Primeiro passo: anonimato. Vou instalar o Tor.", delay=0.03, cor=C.VERDE)
+            digitar("# O Tor permite navegar na dark web anonimamente.", delay=0.03, cor=C.CINZA)
+            digitar("# Comando: sudo apt update && sudo apt install tor", delay=0.03, cor=C.CINZA)
+
+            if prompt_simples("sudo apt update && sudo apt install tor", "Instalar o navegador Tor", state):
+                state.completar_missao('instalar_tor')
+                sucesso("Tor instalado com sucesso!")
+                salvar_checkpoint(state, arquivo_save, 'tor_instalado')
+            else:
+                return state.to_dict()
         else:
-            resultado = rota_destruicao(state, arquivo_save)
-            
-        if state.saindo_para_menu:
-            return state.to_dict()
+            print(f"\n{C.AMARELO}Missão 1 já concluída. Continuando...{C.RESET}")
+            time.sleep(1)
 
-        if resultado:
-            cena_final(state)
-            return state.to_dict()
-            
+        exibir_status(state)
+        time.sleep(2)
+
+        if not state.missoes.get('acessar_darkweb', False):
+            # MISSÃO 2: Acessar primeiro site .onion
+            print(f"\n{C.ROXO}{'═' * 60}{C.RESET}")
+            print(f"{C.ROXO}🎯 MISSÃO 2/6: PRIMEIRO ACESSO À DARK WEB{C.RESET}")
+            print(f"{C.ROXO}{'═' * 60}{C.RESET}")
+
+            digitar("\n[*] Agora vou acessar a dark web.", delay=0.03, cor=C.VERDE)
+            digitar("# Sites .onion só funcionam através do Tor.", delay=0.03, cor=C.CINZA)
+            digitar("# Vou usar o torbrowser-launcher.", delay=0.03, cor=C.CINZA)
+            digitar("# Comando: torbrowser-launcher", delay=0.03, cor=C.CINZA)
+
+            if prompt_simples("torbrowser-launcher", "Iniciar o Tor Browser", state):
+                state.completar_missao('acessar_darkweb')
+                print(f"\n{C.ROXO}🌐 Bem-vindo à Dark Web!{C.RESET}")
+                print(f"{C.ROXO}📋 Sites descobertos: duckduckgo.com | protonmail.com{C.RESET}")
+                state.onion_sites_descobertos.extend(['duckduckgo.com', 'protonmail.com'])
+                sucesso("Conectado à dark web!")
+                salvar_checkpoint(state, arquivo_save, 'darkweb_acessada')
+            else:
+                return state.to_dict()
+        else:
+            print(f"\n{C.AMARELO}Missão 2 já concluída. Continuando...{C.RESET}")
+            time.sleep(1)
+
+        if not state.missoes.get('criptografar_mensagem', False):
+            # MISSÃO 3: Criptografar mensagem
+            print(f"\n{C.ROXO}{'═' * 60}{C.RESET}")
+            print(f"{C.ROXO}🎯 MISSÃO 3/6: CRIPTOGRAFIA BÁSICA{C.RESET}")
+            print(f"{C.ROXO}{'═' * 60}{C.RESET}")
+
+            digitar("\n[*] Hora de aprender criptografia. Vou usar GPG.", delay=0.03, cor=C.VERDE)
+            digitar("# GPG permite criptografar mensagens e arquivos.", delay=0.03, cor=C.CINZA)
+            digitar("# Primeiro, gerar chave: gpg --gen-key", delay=0.03, cor=C.CINZA)
+
+            if prompt_simples("gpg --gen-key", "Gerar chave GPG para criptografia", state):
+                digitar("\n[*] Chave gerada. Agora vou criptografar uma mensagem de teste.", delay=0.03, cor=C.VERDE)
+                digitar("# Comando: echo 'teste' | gpg --encrypt --armor", delay=0.03, cor=C.CINZA)
+
+                if prompt_simples("echo 'teste' | gpg --encrypt --armor", "Criptografar mensagem de teste", state):
+                    state.completar_missao('criptografar_mensagem')
+                    sucesso("Mensagem criptografada com sucesso!")
+                    salvar_checkpoint(state, arquivo_save, 'mensagem_criptografada')
+                else:
+                    return state.to_dict()
+            else:
+                return state.to_dict()
+        else:
+            print(f"\n{C.AMARELO}Missão 3 já concluída. Continuando...{C.RESET}")
+
+            time.sleep(1)
+
+        exibir_status(state)
+        time.sleep(2)
+
+        if not state.missoes.get('explorar_forum', False):
+            # MISSÃO 4: Explorar fórum underground
+            print(f"\n{C.ROXO}{'═' * 60}{C.RESET}")
+            print(f"{C.ROXO}🎯 MISSÃO 4/6: EXPLORAÇÃO DE FÓRUNS{C.RESET}")
+            print(f"{C.ROXO}{'═' * 60}{C.RESET}")
+
+            digitar("\n[*] Agora vou explorar fóruns underground.", delay=0.03, cor=C.VERDE)
+            digitar("# Encontrei um fórum interessante: hackforums.onion", delay=0.03, cor=C.CINZA)
+            digitar("# Vou navegar e ver as discussões.", delay=0.03, cor=C.CINZA)
+            digitar("# Comando: lynx https://hackforums.onion", delay=0.03, cor=C.CINZA)
+
+            if prompt_simples("lynx https://hackforums.onion", "Acessar fórum underground", state):
+                state.completar_missao('explorar_forum')
+                print(f"\n{C.ROXO}📋 Tópicos encontrados:{C.RESET}")
+                print(f"{C.ROXO}• 'Como começar no hacking ético'{C.RESET}")
+                print(f"{C.ROXO}• 'Ferramentas essenciais para Kali Linux'{C.RESET}")
+                print(f"{C.ROXO}• 'Mercado negro - cuidados necessários'{C.RESET}")
+                sucesso("Fórum explorado com sucesso!")
+                salvar_checkpoint(state, arquivo_save, 'forum_explorado')
+            else:
+                return state.to_dict()
+        else:
+            print(f"\n{C.AMARELO}Missão 4 já concluída. Continuando...{C.RESET}")
+            time.sleep(1)
+
+        exibir_status(state)
+        time.sleep(2)
+
+        if not state.missoes.get('baixar_ferramenta', False):
+            # MISSÃO 5: Baixar primeira ferramenta
+            print(f"\n{C.ROXO}{'═' * 60}{C.RESET}")
+            print(f"{C.ROXO}🎯 MISSÃO 5/6: DOWNLOAD DE FERRAMENTAS{C.RESET}")
+            print(f"{C.ROXO}{'═' * 60}{C.RESET}")
+
+            digitar("\n[*] Vi uma ferramenta interessante no fórum: sqlmap.", delay=0.03, cor=C.VERDE)
+            digitar("# Sqlmap é uma ferramenta para SQL injection.", delay=0.03, cor=C.CINZA)
+            digitar("# Vou baixar do repositório oficial.", delay=0.03, cor=C.CINZA)
+            digitar("# Comando: git clone https://github.com/sqlmapproject/sqlmap.git", delay=0.03, cor=C.CINZA)
+
+            if prompt_simples("git clone https://github.com/sqlmapproject/sqlmap.git", "Baixar ferramenta sqlmap", state):
+                state.completar_missao('baixar_ferramenta')
+                state.ferramentas_baixadas.append('sqlmap')
+                sucesso("Sqlmap baixado com sucesso!")
+                salvar_checkpoint(state, arquivo_save, 'ferramenta_baixada')
+            else:
+                return state.to_dict()
+        else:
+            print(f"\n{C.AMARELO}Missão 5 já concluída. Continuando...{C.RESET}")
+            time.sleep(1)
+
+        exibir_status(state)
+        time.sleep(2)
+
+        if not state.missoes.get('primeiro_post', False):
+            # MISSÃO 6: Primeiro post anônimo
+            print(f"\n{C.ROXO}{'═' * 60}{C.RESET}")
+            print(f"{C.ROXO}🎯 MISSÃO 6/6: PRIMEIRO POST ANÔNIMO{C.RESET}")
+            print(f"{C.ROXO}{'═' * 60}{C.RESET}")
+
+            digitar("\n[*] Agora vou fazer meu primeiro post anônimo.", delay=0.03, cor=C.VERDE)
+            digitar("# Preciso criar uma identidade anônima.", delay=0.03, cor=C.CINZA)
+            digitar("# Vou usar um nickname aleatório.", delay=0.03, cor=C.CINZA)
+
+            # Simulação de criação de post
+            print(f"\n{C.ROXO}┌─ CRIANDO POST ANÔNIMO ──────────────────────────┐{C.RESET}")
+            print(f"{C.ROXO}│{C.RESET} Nickname sugerido: {C.VERDE}VoidWalker_00{C.RESET}              {C.ROXO}│{C.RESET}")
+            print(f"{C.ROXO}│{C.RESET} Tópico: 'Novato procurando orientação'        {C.ROXO}│{C.RESET}")
+            print(f"{C.ROXO}└─────────────────────────────────────────────────┘{C.RESET}")
+
+            digitar("# Vou postar uma pergunta sobre SQL injection.", delay=0.03, cor=C.CINZA)
+            digitar("# Comando: echo 'Como usar sqlmap para injeção SQL?' > post.txt && cat post.txt", delay=0.03, cor=C.CINZA)
+
+            if prompt_simples("echo 'Como usar sqlmap para injeção SQL?' > post.txt && cat post.txt", "Criar e visualizar post anônimo", state):
+                state.completar_missao('primeiro_post')
+                sucesso("Post anônimo criado com sucesso!")
+                salvar_checkpoint(state, arquivo_save, 'post_criado')
+            else:
+                return state.to_dict()
+        else:
+            print(f"\n{C.AMARELO}Missão 6 já concluída. Continuando...{C.RESET}")
+            time.sleep(1)
+
+        # FINAL DO CAPÍTULO
+        exibir_status(state)
+
+        # Momento de reflexão
+        mostrar_pensamentos_depressao(state)
+
+        digitar("\nPela primeira vez em semanas, sinto que tenho um propósito.", delay=0.05, cor=C.CIANO)
+        digitar("O código não mente. O código não trai. O código é poder.", delay=0.05, cor=C.CIANO)
+
+        state.capitulo_concluido = True
+        state.operacao_sucesso = True
+        salvar_checkpoint(state, arquivo_save, 'capitulo_concluido')
+
+        # Resumo final
+        completas, total = state.verificar_progresso()
+        print(f"\n{C.VERDE}{'═' * 60}{C.RESET}")
+        print(f"{C.VERDE}✓ CAPÍTULO 2 CONCLUÍDO!{C.RESET}")
+        print(f"{C.CIANO}Missões completadas: {completas}/{total}{C.RESET}")
+        print(f"{C.CIANO}Score final: {state.score}{C.RESET}")
+        print(f"{C.CIANO}Motivação hacker: {state.motivacao_hacker}%{C.RESET}")
+        print(f"{C.VERDE}{'═' * 60}{C.RESET}")
+
+        input(f"\n{C.CINZA}[ENTER para continuar para o próximo capítulo]{C.RESET}")
+
+        return state.to_dict()
+
     except KeyboardInterrupt:
-        print(f"\n{C.VERMELHO}JOGO INTERROMPIDO.{C.RESET}")
-        return None
+        print(f"\n{C.VERMELHO}Capítulo interrompido pelo usuário.{C.RESET}")
+        return state.to_dict()
+    except Exception as e:
+        erro(f"Erro inesperado no capítulo: {e}")
+        return state.to_dict()
 
-if __name__ == "__main__":
-    # Teste rápido
-    dados = {'player_name': 'Tester', 'capitulo_1_resultado': 'exfiltrar'}
-    iniciar(dados)
+

@@ -1037,7 +1037,7 @@ class IntroMenu:
     # ========== FUNÇÕES DO MENU DE JOGO ==========
     
     def _continuar_jogo(self, dados_jogador, arquivo_save):
-        """Continua o jogo do ponto onde parou - loop dinâmico"""
+        """Continua o jogo do ponto onde parou - LOOP AUTOMÁTICO DE CAPÍTULOS"""
         
         jogando = True
         while jogando and self.running:
@@ -1048,35 +1048,63 @@ class IntroMenu:
             capitulo_atual = dados_jogador.get('current_chapter', 1)
             
             # Executar o capítulo atual
-            sucesso = self._executar_capitulo(capitulo_atual, dados_jogador, arquivo_save)
-            
-            if sucesso:
-                if dados_jogador.get('saindo_para_menu'):
-                    print(f"\n{self.AMARELO}Retornando ao menu principal...{self.RESET}")
-                    time.sleep(1)
-                    jogando = False
-                    continue
-                # Verificar se o jogador completou o jogo ou se deve continuar
-                # Logicamente, se o capítulo retornou sucesso e atualizou o current_chapter,
-                # o loop vai pegar o novo capítulo na próxima iteração.
-                
-                # Se o capítulo atual não mudou após sucesso, pode ser um "fim de jogo" ou erro lógico
-                # Mas assumindo que chapters incrementam current_chapter ao final:
-                novo_capitulo = dados_jogador.get('current_chapter', capitulo_atual)
-                
-                if novo_capitulo == capitulo_atual:
-                    # Se não avançou de capítulo mesmo com sucesso, talvez seja o fim do conteúdo atual
-                    print(f"\n{' ' * ((self.term_width - 40) // 2)}{self.VERDE}FIM DO CONTEÚDO DISPONÍVEL{self.RESET}")
-                    print(f"{' ' * ((self.term_width - 50) // 2)}{self.CINZA}Aguarde por novas atualizações...{self.RESET}")
+            resultado = self._executar_capitulo(capitulo_atual, dados_jogador, arquivo_save)
+            if isinstance(resultado, dict):
+                dados_jogador.clear()
+                dados_jogador.update(resultado)
+            elif resultado is None:
+                print(f"\n{self.VERMELHO}Erro crítico no capítulo {capitulo_atual}. Retornando ao menu...{self.RESET}")
+                time.sleep(2)
+                jogando = False
+                self._mostrar_menu_principal()
+                continue
+            else:
+                print(f"\n{self.VERMELHO}Erro inesperado no capítulo {capitulo_atual}. Retornando ao menu...{self.RESET}")
+                time.sleep(2)
+                jogando = False
+                self._mostrar_menu_principal()
+                continue
+
+            # Verificar se o jogador saiu para o menu durante o capítulo
+            if dados_jogador.get('saindo_para_menu'):
+                print(f"\n{self.AMARELO}Retornando ao menu principal...{self.RESET}")
+                time.sleep(1)
+                jogando = False
+                # Voltar ao menu principal, não ao menu de jogo
+                self._mostrar_menu_principal()
+                continue
+
+            # Verificar se completou o capítulo atual
+            if dados_jogador.get('completed', False):
+                capitulos_completados = dados_jogador.get('completed_chapters', [])
+                if capitulo_atual not in capitulos_completados:
+                    capitulos_completados.append(capitulo_atual)
+                    dados_jogador['completed_chapters'] = capitulos_completados
+
+                proximo_capitulo = capitulo_atual + 1
+                dados_jogador['current_chapter'] = proximo_capitulo
+
+                self._salvar_jogo(dados_jogador, arquivo_save)
+
+                print(f"\n{self.VERDE}Capítulo {capitulo_atual} completado! Avançando para capítulo {proximo_capitulo}...{self.RESET}")
+                time.sleep(2)
+
+                capitulos_disponiveis = self._verificar_capitulos_disponiveis()
+                max_capitulo = max([c['numero'] for c in capitulos_disponiveis]) if capitulos_disponiveis else 0
+
+                if proximo_capitulo > max_capitulo:
+                    print(f"\n{' ' * ((self.term_width - 40) // 2)}{self.VERDE}PARABÉNS!{self.RESET}")
+                    print(f"{' ' * ((self.term_width - 50) // 2)}{self.CINZA}Você completou todo o conteúdo disponível.{self.RESET}")
+                    print(f"{' ' * ((self.term_width - 60) // 2)}{self.CINZA}Aguarde por novas atualizações e capítulos!{self.RESET}")
                     time.sleep(3)
                     jogando = False
-                else:
-                    # Avançou para o próximo, loop continua e carrega o novo
-                    # Pequena pausa dramática entre capítulos
-                    time.sleep(1)
+                    self._mostrar_menu_principal()
+                    continue
+
+                time.sleep(1)
             else:
-                # Se falhou (Game Over ou saiu para menu)
-                jogando = False
+                print(f"\n{self.VERMELHO}Capítulo {capitulo_atual} não foi completado. Tentando novamente...{self.RESET}")
+                time.sleep(2)
     
     # Funções de Bitcoin movidas para bitcoin_and_market.py
     
@@ -1174,7 +1202,7 @@ class IntroMenu:
     # ========== FUNÇÕES DO MENU PRINCIPAL ==========
     
     def _novo_jogo(self):
-        """Cria novo jogo"""
+        """Cria novo jogo e INICIA CAPÍTULO 1 AUTOMATICAMENTE"""
         self._limpar_tela()
         print(f"\n{' ' * ((self.term_width - 20) // 2)}{self.VERDE}NOVO JOGO{self.RESET}")
         print(f"{' ' * ((self.term_width - 20) // 2)}{self.CINZA}════════════════════{self.RESET}\n")
@@ -1222,11 +1250,14 @@ class IntroMenu:
         # MOSTRA ANIMAÇÃO DO TERMINAL KALI
         self._mostrar_terminal_kali(codinome)
         
-        # Ir para menu de jogo (NÃO inicia capítulo automaticamente)
-        self._mostrar_menu_jogo(dados_jogador, arquivo_save)
+        # INICIA CAPÍTULO 1 AUTOMATICAMENTE (não vai para menu)
+        print(f"\n{' ' * ((self.term_width - 30) // 2)}{self.VERDE}INICIANDO JORNADA...{self.RESET}")
+        time.sleep(1)
+        
+        self._continuar_jogo(dados_jogador, arquivo_save)
     
     def _carregar_jogo_menu(self):
-        """Carrega jogo salvo"""
+        """Carrega jogo salvo e CONTINUA AUTOMATICAMENTE"""
         self._limpar_tela()
         print(f"\n{' ' * ((self.term_width - 20) // 2)}{self.VERDE}CARREGAR JOGO{self.RESET}")
         print(f"{' ' * ((self.term_width - 20) // 2)}{self.CINZA}════════════════════{self.RESET}\n")
@@ -1262,8 +1293,11 @@ class IntroMenu:
                     # Mostra animação rápida do terminal
                     self._mostrar_terminal_kali(dados_jogador['codiname'])
                     
-                    # Ir para menu de jogo
-                    self._mostrar_menu_jogo(dados_jogador, saves[idx]['arquivo'])
+                    # CONTINUA JOGO AUTOMATICAMENTE (não vai para menu)
+                    print(f"\n{' ' * ((self.term_width - 35) // 2)}{self.VERDE}CONTINUANDO JORNADA...{self.RESET}")
+                    time.sleep(1)
+                    
+                    self._continuar_jogo(dados_jogador, saves[idx]['arquivo'])
                 else:
                     print(f"\n{' ' * ((self.term_width - 30) // 2)}{self.VERMELHO}ERRO AO CARREGAR ARQUIVO{self.RESET}")
                     time.sleep(1)

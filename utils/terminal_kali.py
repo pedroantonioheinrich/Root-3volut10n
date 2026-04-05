@@ -681,14 +681,3 @@ def mostrar_banner():
     header_kali_v2("KALI LINUX", "Simulation Environment")
 
 
-if __name__ == "__main__":
-    print(f"{C.KALI_CIANO}Testing Kali Linux Terminal...{C.RESET}")
-    time.sleep(0.5)
-    
-    # Testar função digitar
-    digitar("Testando função digitar... ", velocidade=0.05, cor=C.KALI_VERDE)
-    print("✅ OK!")
-    
-    # Testar terminal
-    terminal = TerminalKali("hacker", "kali")
-    terminal.sessao_interativa()
